@@ -18,4 +18,10 @@
 
 原本の図鑑記述は公開せず、分類コードと未評価条件への対応を独自に計算して表示する。公開時の第三者への連絡は必須条件として確認できたもの以外は実施していない。
 
+生息環境の整理に用いた図鑑の引用：小野展嗣・緒方清人（2018）『日本産クモ類生態図鑑 自然史と多様性』東海大学出版部。書誌は[CiNii Books](https://ci.nii.ac.jp/ncid/BB26861030)で確認。行ごとのページ番号は入力CSVにない。
+
+分類・県別記録の引用：Japan Spider Catalog. (2026). Japan Spider Catalog, ver. 2.0.7. https://japan-spider-catalog.pages.dev/ (accessed 2026-10-08).
+
+標高は内部の研究計算を実施し、距離条件とともに[ローカル試作](spatial-model.md)へ反映した。内部利用と、DEM由来の候補地地図・GISを一般配信する手続は分けて確認する。原DEMを配布しないことだけで、派生地図の公開手続が不要とは断定しない。新しい解析データは公開リポジトリにも含めていない。
+
 無料運営では公開前のローカル計算と静的配信を基本とする。[Cloudflare Pagesの無料枠](https://developers.cloudflare.com/pages/platform/limits/)は月500ビルド、20,000ファイル、1ファイル25MiB。[GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages)はGitHub Freeの非公開リポジトリからの公開を対象としないため、非公開ソースと無料ホスティングを分ける。

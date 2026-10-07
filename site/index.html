@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="日本産クモの生息環境情報と2024年の土地被覆から、環境候補を地図で検索し、種ごとの面積を比較する個人研究サイト。">
+  <meta name="theme-color" content="#132e45">
+  <title>日本産クモ類 生息環境データベース</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./vendor/leaflet/leaflet.css"><link rel="stylesheet" href="./style.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+<a class="skip" href="#workspace">地図と結果へ</a>
+<header class="header">
+  <a class="brand" href="./">日本産クモ類 生息環境データベース</a>
+</header>
+<nav class="navigation" aria-label="主な機能">
+  <button class="nav-button active" data-view="explore" aria-current="page">地図で探す</button>
+  <button class="nav-button" data-view="compare">面積・環境を比較 <span id="compare-count">0</span></button>
+  <button class="nav-button" data-view="methods">方法と出典</button>
+  <button class="nav-button" data-view="updates">更新履歴</button>
+  <button class="nav-button" data-view="export">データ出力</button>
+</nav>
+<div id="boot" role="status" class="boot">分類と環境データを読み込んでいます…</div>
+<main id="workspace" hidden>
+  <section class="scope-bar" aria-label="共通の集計条件">
+    <div class="control"><label for="region">対象地域</label><select id="region"><option value="all">全国</option><option value="hokkaido">北海道</option><option value="tohoku">東北</option><option value="kanto">関東</option><option value="chubu">中部</option><option value="kinki">近畿</option><option value="chugoku">中国</option><option value="shikoku">四国</option><option value="kyushu">九州</option><option value="okinawa">沖縄</option></select></div>
+    <div class="control"><label for="pref">都道府県</label><select id="pref"><option value="">すべての都道府県</option></select></div>
+    <div class="control scope-control"><label for="scope">分布記録の扱い</label><select id="scope"><option value="recorded">記録のある県に限定</option><option value="environment">全地域の環境だけで比較</option></select></div>
+    <div class="control unit-control"><label for="unit">面積単位</label><select id="unit"><option value="km2">km²</option><option value="ha">ha</option></select></div>
+  </section>
+  <section id="explore" class="view explore">
+    <aside class="sidebar" aria-label="クモを選ぶ">
+      <div class="sidebar-heading"><h1>種を探す</h1><span id="catalog-count" class="muted"></span></div>
+      <label class="sr-only" for="search">和名・学名・科名で検索</label>
+      <div class="search-box"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="和名・学名・科名" autocomplete="off"></div>
+      <label class="check-label"><input type="checkbox" id="mapped-only" checked>土地被覆を判定できる種</label>
+      <p id="search-count" class="search-count" aria-live="polite"></p>
+      <div id="species-list" class="species-list" aria-label="検索結果"></div>
+      <button id="more-species" class="text-button" hidden>さらに50種を表示</button>
+      <div class="sidebar-bottom"><p>分類：Japan Spider Catalog<br>土地被覆：JAXA HRLULC</p><button class="text-button" data-view="methods">方法と出典</button></div>
+    </aside>
+    <div class="main-column">
+      <section class="species-heading" aria-labelledby="selected-name"><div><p id="selected-family" class="eyebrow"></p><h2 id="selected-name"></h2><p id="selected-scientific" class="scientific"></p><p id="taxonomy-note" class="note" hidden></p></div><button id="add-compare" class="secondary-button">比較に追加</button></section>
+      <div class="metrics" aria-live="polite">
+        <div class="metric metric-primary"><span>土地被覆の候補面積</span><strong id="area">—</strong><small>収録範囲内の概算</small></div>
+        <div class="metric"><span>選択範囲の記録県</span><strong id="recorded-count">—</strong><small>記録は現在の生息確認ではありません</small></div>
+        <div class="metric"><span>土地被覆への対応</span><strong id="rule-count">—</strong><small id="rule-status"></small></div>
+      </div>
+      <div class="map-wrap">
+        <div class="map-toolbar"><div><strong>環境候補マップ</strong><span id="map-resolution">広域表示</span></div><div><label for="basemap" class="sr-only">背景地図</label><select id="basemap"><option value="pale">淡色地図</option><option value="blank">背景なし</option></select><button id="fit-map" class="small-button">対象範囲へ</button></div></div>
+        <div id="map" aria-label="土地被覆条件に合う環境候補の地図"></div>
+        <div id="map-status" class="map-status" role="status"></div>
+        <div class="map-legend"><span>メッシュ内の該当画素の割合</span><i class="legend-one"></i><span>0超〜10%</span><i class="legend-two"></i><span>10〜30%</span><i class="legend-three"></i><span>30%以上</span></div>
+      </div>
+      <p class="map-caption">色のついた区画全体が生息地という意味ではありません。標高・気温・微環境、水際への距離は今後の対応を検討しています。背景：<a href="https://maps.gsi.go.jp/development/ichiran.html">地理院タイル</a>。低ズームの海岸線：United States, National Imagery and Mapping Agency, Vector Map Level 0 (VMAP0), 1997。</p>
+      <section class="evidence"><div class="section-heading"><h3>この種で対象にした環境</h3></div><div id="rule-tags" class="tags"></div><p id="pending-note"></p><p class="note" id="coverage-note"></p></section>
+    </div>
+  </section>
+  <section id="compare" class="view compare-view" hidden>
+    <div class="section-heading"><div><h1>種ごとの候補面積と環境を比較</h1><p class="muted">選択した地域に含まれる環境の面積を比べます。生息数・希少性の順位ではありません。</p></div><button id="export-csv" class="secondary-button">比較結果をCSVで保存</button></div>
+    <div class="comparison-add"><span id="compare-picker-label">比較する種を追加</span><details id="compare-picker" class="species-picker"><summary id="compare-choice" aria-labelledby="compare-picker-label compare-choice"></summary><label class="sr-only" for="compare-search">比較する種を検索</label><input id="compare-search" type="search" placeholder="和名・学名で検索" autocomplete="off"><div id="compare-options"></div></details><button id="compare-add-button" class="primary-button">追加</button><span class="muted">最大8種</span></div>
+    <div id="comparison-chips" class="tags"></div>
+    <p id="comparison-scope" class="notice"></p>
+    <div id="comparison-chart" class="comparison-chart"></div>
+    <div class="table-scroll"><table><caption>候補面積と環境の内訳</caption><thead><tr><th scope="col">種</th><th scope="col">候補面積</th><th scope="col">対象県数</th><th scope="col">環境別の候補面積</th><th scope="col">未評価の条件</th></tr></thead><tbody id="comparison-table"></tbody></table></div>
+    <p class="note">県境付近の除外メッシュと土地被覆の欠損があるため、面積は収録範囲内の概算です。扱えない環境が多い種の値が小さくなることがあります。CSVには計算条件・モデル版・出典を含めます。</p>
+  </section>
+  <section id="methods" class="view methods-view" hidden>
+    <h1>生息環境から候補地と面積を求める方法</h1>
+    <p class="lead">森林や草地などの生息環境の情報を地図と結びつけ、クモを調べる候補地を探すためのデータベースです。</p>
+    <article><h2>東京蜘蛛談話会での発表から</h2><p>このサイトは、2026年4月26日の東京蜘蛛談話会例会で発表した「クモの生息地を推定する簡易モデルの試案」をもとにしています。</p><p>クモには、生息環境の記述や県単位の分布記録があっても、正確な座標を伴う出現記録が少ない種がいます。そこで、既存の自然史情報を地図上の環境と組み合わせ、次の調査に使える分布候補地を示すことを考えました。</p><p>候補地の地図を手がかりに現地を調べ、得られた記録で条件を見直していくことを目指しています。候補面積は、その種が実際に占める面積や出現確率を表しません。</p></article>
+    <article><h2>生息環境・分布記録・土地被覆を組み合わせる</h2>
+    <ol class="concept-flow"><li><strong>種の生息環境を整理</strong><p>図鑑などから整理した環境記述を、森林・草地・水田など、地図で扱える条件に対応させます。</p></li><li><strong>比較する地域を選択</strong><p>県別記録のある範囲に絞るか、記録の有無によらず同じ地域の環境を比べるかを選びます。</p></li><li><strong>候補地を表示し、面積を集計</strong><p>衛星の土地被覆図から該当する環境の広がりを表示し、種類別・種別に面積を比べます。</p></li></ol>
+    <p>たとえば「平地の森林」という環境情報のうち、現在の版では森林に当たる土地被覆を対象とします。平地を表す標高条件はまだ含めていません。「水辺の草地」も草地を対象とし、水際への距離は今後追加する条件です。</p></article>
+    <article><h2>発表したモデルと現在のWeb版の違い</h2><div class="table-scroll"><table><thead><tr><th scope="col">項目</th><th scope="col">発表したモデル</th><th scope="col">現在のWeb版</th></tr></thead><tbody><tr><th scope="row">環境条件</th><td>土地被覆と標高を組み合わせる</td><td>土地被覆への対応を使う</td></tr><tr><th scope="row">県別記録</th><td>記録の新しさ・多さなどを相対的な強度にする</td><td>記録県に範囲を絞る条件として使う</td></tr><tr><th scope="row">結果</th><td>250m格子の相対的な候補地スコア</td><td>約1km区画の環境の割合と、該当画素の候補面積</td></tr></tbody></table></div><p>今回の版は、種どうしで候補面積を比較できるよう、同じ土地被覆図と面積計算を用います。発表時のスコアや検証結果を、このWeb版の精度として示すものではありません。</p></article>
+    <article><h2>面積と地図の読み方</h2><p>種に対応する複数の環境を合わせ、同じ場所を重ねて数えずに面積を求めます。土地被覆の元画素を約1kmの区画に集計し、緯度による画素面積の違いも反映します。広域表示では区画をまとめ、拡大すると約1kmの表示に切り替わります。面積の集計値は表示倍率によって変わりません。</p><p>「記録のある県に限定」では、公開中のJapan Spider Catalogから取得した県別記録を使います。「通常」の記録を対象とし、引用・未確認・不明のカテゴリーを含みます。「要確認・誤同定」は除外します。県の記録は、その県全域での分布や現在の生息を示すものではありません。</p><p>「全地域の環境だけで比較」では、すべての種を選択した同じ範囲で比べます。既知の分布外の環境も含むため、気候や島の違い、移動可能性を別途考える必要があります。</p></article>
+    <article><h2>未評価の条件と今後の対応</h2><p>標高・気温などの気候条件、水際や林縁からの距離、落葉層などの微環境への対応を検討しています。各データの利用条件と精度を確認し、現地記録と照らし合わせながら追加します。</p><ul><li>現在の結果は土地被覆に合う環境の候補です。独立した観察地点による予測精度の検証はまだ行っていません。</li><li>県境の一部や土地被覆の欠損は集計に含まれません。全国を選んでも、収録範囲内の概算です。</li><li>環境情報が不足する種は小さい面積や判定保留になります。希少性や絶滅リスクの順位には使えません。</li><li>現地での生息確認や、立ち入り・採集の許可を示す地図ではありません。</li></ul></article>
+    <article><h2>出典・ライセンス</h2><dl class="sources"><dt>土地被覆</dt><dd><a href="https://www.eorc.jaxa.jp/ALOS/jp/dataset/lulc/lulc_v2504_j.htm">JAXA 高解像度土地利用土地被覆図 2024JPN_v25.04</a>を加工。<a href="https://earth.jaxa.jp/ja/data/policy/">利用条件</a>に基づき使用。原データの補助情報には農林水産省の筆ポリゴン（2022年度公開、加工）および © OpenStreetMap contributors の道路網が含まれます。提供元は本サイトの判断を保証・推奨していません。</dd><dt>県への所属</dt><dd><a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N03-2025.html">国土数値情報・行政区域データ2025年版（国土交通省）</a>を加工した県別集計。<a href="https://creativecommons.org/licenses/by/4.0/deed.ja">CC BY 4.0</a>。元の行政境界図形は配信していません。</dd><dt>分類・県別記録</dt><dd><a href="https://japan-spider-catalog.pages.dev/">Japan Spider Catalog 公開サイト</a>から2026年10月8日に取得した分類・分布記録を使用。サイト上の更新履歴は ver. 2.0.7（2026年9月25日）。通常の記録を対象とし、「要確認・誤同定」は除外しています。環境情報は発表研究で整理した記述に基づきます。</dd><dt>背景地図</dt><dd><a href="https://maps.gsi.go.jp/development/ichiran.html">国土地理院・地理院タイル（淡色地図）</a>を閲覧時に直接読み込み。背景をオフにもできます。低ズームの出典：Shoreline data is derived from: United States. National Imagery and Mapping Agency. &quot;Vector Map Level 0 (VMAP0).&quot; Bethesda, MD: Denver, CO: The Agency; USGS Information Services, 1997。<a href="https://www.gsi.go.jp/LAW/2930-qa.html">利用案内 Q1-12</a>。</dd><dt>地図ライブラリ</dt><dd><a href="https://leafletjs.com/">Leaflet 1.9.4</a> · <a href="./vendor/leaflet/LICENSE.txt">BSD 2-Clause License</a></dd><dt>旧学名の対応</dt><dd>World Spider Catalog (2026), Natural History Museum Bern を参照し、研究資料の名称を照合。<a href="https://wsc.nmbe.ch/dataresources">WSCの出典</a>・<a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a>。一部は研究者の判断で種の扱いを調整しています。</dd></dl></article>
+    <article><h2>コードと方法の説明資料</h2><p>計算方法やデータの扱いを確認できるよう、<a href="https://github.com/keshikata/spider-habitat-database">コードと説明資料をGitHubで公開</a>しています。研究資料の原本や記録者情報は含めていません。</p></article>
+    <article><h2>閲覧時の通信</h2><p>背景地図を表示すると、国土地理院の地図配信へ接続します。背景は「背景なし」に切り替えられます。独自のアクセス解析やアカウント登録はありません。</p></article>
+    <article><h2>お問い合わせ</h2><p>種の扱い、環境条件、データの誤りに関するご連絡は、<a href="mailto:ryotahidakaac@gmail.com">ryotahidakaac@gmail.com</a>へお願いします。対象の種と、気づいた点をお知らせください。</p><p><a href="https://www.researchgate.net/profile/Ryota-Hidaka">日髙涼太のResearchGateプロフィール</a></p></article>
+  </section>
+  <section id="updates" class="view methods-view" hidden><h1>更新履歴</h1><article><h2>2026年10月8日　試作の更新</h2><ul><li>種の検索、環境候補マップ、種ごとの面積・環境比較を追加。</li><li>公開JSCの分類・県別記録（取得日：2026年10月8日）に更新。</li><li>発表の背景とモデルの考え方を追加。旧研究資料の学名を照合。</li><li>環境別・県別の集計データ出力を追加。</li></ul><p>土地被覆はJAXA 2024JPN_v25.04を使用しています。</p></article></section>
+  <section id="export" class="view methods-view" hidden><h1>集計データを保存</h1><p class="lead">選択した種・地域・分布条件で集計した結果をCSV形式で保存できます。</p><p id="export-scope" class="notice"></p><div class="export-actions"><button id="export-selected" class="secondary-button">選択中の種の環境別面積</button><button id="export-comparison" class="secondary-button">比較中の種の環境別面積</button><button id="export-prefectures" class="secondary-button">選択中の種の県別面積</button></div><p>CSVには和名・学名、対象範囲、面積の単位、データの参照日、出典と利用条件を含みます。判定できない条件や記録県がない場合は、面積ゼロと区別して出力します。</p><article><h2>利用条件</h2><p>土地被覆の加工データは<a href="https://earth.jaxa.jp/ja/data/policy/">JAXAの利用条件</a>、行政区域に基づく情報は<a href="https://creativecommons.org/licenses/by/4.0/deed.ja">CC BY 4.0</a>、WSCに由来する分類対応情報は<a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a>に従います。出典を付してご利用ください。素材ごとの詳細は「方法と出典」に記載しています。</p></article></section>
+
+</main>
+<footer><span>日本産クモ類 生息環境データベース</span></footer>
+<div id="toast" class="toast" role="status" hidden></div>
+<noscript><p>検索・地図・面積比較にはJavaScriptを有効にしてください。</p></noscript>
+</body>
+</html>

@@ -1,0 +1,17 @@
+site/data/
+local/
+output/
+.env*
+node_modules/
+.wrangler/
+__pycache__/
+*.pyc
+*.csv
+*.tsv
+*.tif
+*.tiff
+*.gpkg
+*.pptx
+*.pdf
+*.xlsx
+*.zip

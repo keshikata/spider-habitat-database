@@ -12,6 +12,12 @@ for(const line of fs.readFileSync(path.join(root,'_headers'),'utf8').split(/\r?\
   if(line.startsWith('/data/'))break;
   const match=line.match(/^\s+([^:]+):\s*(.*)$/);if(match)headers[match[1]]=match[2];
 }
+// Codex annotations inject style elements. Allow those only in this loopback
+// preview; Cloudflare still uses site/_headers verbatim. Scripts stay restricted.
+if(!process.argv.includes('--strict-csp')){
+  headers['Content-Security-Policy']=headers['Content-Security-Policy'].replace(
+    /(^|;\s*)style-src-elem 'self'(?=;|$)/,"$1style-src-elem 'self' 'unsafe-inline'");
+}
 http.createServer((req,res)=>{
   const finish=(status,text='')=>{res.writeHead(status,{...headers,'Content-Type':'text/plain; charset=utf-8'});res.end(text);};
   if(!['127.0.0.1:5187','localhost:5187'].includes(req.headers.host))return finish(403);

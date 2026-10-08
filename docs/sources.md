@@ -49,3 +49,8 @@
 国土地理院の[手続ナビ](https://service.gsi.go.jp/onestop/navi/nav5-2/)には、学会発表や一般公開される論文が申請不要となる例がある。DEMを計算に用いて別の主題図を作る行為は、単純な複製ではなく[「使用」の事例](https://www.gsi.go.jp/LAW/2930-sample.html)に近い。一方、申請要否は利用形態で別に判断する。[Webへの挿入図](https://service.gsi.go.jp/onestop/navi/nav5-3/)にも申請不要の例がある。今回の6・9～12ページの実図には緯度経度の目盛があり、地図コンテンツを主とする本サイト内で配信するため、この掲載形態への適用は未確定として保留した。発表での使用自体に承認が必要だったという判断ではない。
 
 許諾申請・問い合わせの送信は行っていない。利用条件を確認できた後、該当する機能・図版だけを追加できる。
+
+## SNS共有画像
+
+2026-10-09に作成。サイト名・機能を示す文字、独自のクモとメッシュの模式図のみを使用する。地理データ、DEM由来の図、第三者の写真・ロゴ・資料図版は使用しない。
+文字は[Google FontsのNoto Sans JP](https://github.com/google/fonts/tree/main/ofl/notosansjp)。[SIL OFL 1.1](https://raw.githubusercontent.com/google/fonts/main/ofl/notosansjp/OFL.txt)に従って編集ソースのフォントを埋め込み、著作権表示とライセンスを保持する。配信するPNGにはフォントファイルを含めない。フォントの条件は、そのフォントで作った文書・画像に同ライセンスを強制するものではない。

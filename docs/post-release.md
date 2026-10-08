@@ -32,6 +32,29 @@ node scripts/check-deployment.mjs https://spider-habitat-atlas.pages.dev/ output
 
 Chromeでクロボシカニグモ・熊本県・記録範囲・500mの3,163.7km²を確認。草地を外すと2,526.9km²、復元で元へ戻る。保存したCSVの面積は3163.684km²で一致。表示範囲のGeoJSONは13,995区画・11,482,086 bytesで、保留データの除外表示を保持した。資料6ページは保留表示、背景地図の切替も動作した。ブラウザーのダウンロード通知待ちはタイムアウトしたため、実際に保存されたCSV・GeoJSONファイルを読み取り検証した。
 
+## 2026-10-09：SNS共有表示
+
+OGPとXの大きな画像カードを追加。公開URLは同じ。
+
+| 項目 | 値 |
+| --- | --- |
+| 配信ID | `a3027952-3bac-40b8-8adb-101b7f5a4b99` |
+| この版のURL | https://a3027952.spider-habitat-atlas.pages.dev/ |
+| 公開時のソース | `b00102e` |
+| 保存した公開フォルダ | `output/release-2026-10-09-ogp/` |
+| 公開フォルダの識別値 | `c85ffaaa803f75deb3ceae7914ef15249b1bf90b4a0f3d8af326829e1b119f36` |
+| ファイル | 2,407ファイル、333,970,920 bytes |
+| 共有画像 | 1200 × 630 px、101,625 bytes |
+
+既存33件のNode回帰テスト、検索・旧圧縮地図の整合性、完成した公開フォルダの許可リスト・ハッシュ・個人名等の除外検査が合格。
+本番36ファイル（18,965,260 bytes）のハッシュ・HTTPS・安全なヘッダー・キャッシュ・PNGのContent-Typeを確認した。
+Twitterbot/1.0のUser-AgentでもHTMLと画像がHTTP200で、ローカル版と一致する。実際のX投稿でのカード表示・再取得の時刻は未確認。
+地理データ・資料画像・計算処理は初版と同一。共有画像の編集フォントは配信しない。[共有表示の更新手順](sharing.md)を参照。
+
+```sh
+node scripts/check-deployment.mjs https://spider-habitat-atlas.pages.dev/ output/release-2026-10-09-ogp
+```
+
 ## 最初の1週間
 
 | 優先度 | 作業 | 完了の目安 |

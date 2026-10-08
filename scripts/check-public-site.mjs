@@ -5,8 +5,10 @@ import {gunzipSync} from 'node:zlib';
 import {createHash} from 'node:crypto';
 import {APPLICATION_ASSETS,checkPublicPaths,verifyAssetDigest} from './public-assets.mjs';
 import {validateDelivery} from '../site/delivery.js';
+import {checkSharing} from './check-sharing.mjs';
 
 const root=path.resolve(process.argv[2]||'output/public-site');
+const sharing=checkSharing(root);
 const read=name=>JSON.parse(fs.readFileSync(path.join(root,name)));
 const delivery=validateDelivery(read('data/spatial/delivery-manifest.json')),manifest=read('data/spatial/manifest.json');
 const infos=[delivery.summary,delivery.geography,...Object.values(delivery.prefectures),...Object.values(delivery.regions),manifest.overview,...manifest.tiles];
@@ -31,4 +33,4 @@ for(const name of files){
   }
 }
 assert.ok(files.length<=20000);
-console.log(JSON.stringify({files:files.length,bytes,maxFileBytes,artifactSHA256:fingerprint.digest('hex'),allowlist:'passed',digests:'passed',privateText:'passed'}));
+console.log(JSON.stringify({files:files.length,bytes,maxFileBytes,artifactSHA256:fingerprint.digest('hex'),allowlist:'passed',digests:'passed',privateText:'passed',sharing}));

@@ -10,6 +10,7 @@
   <script type="module" src="./app.js"></script>
 </head>
 <body>
+<svg class="icon-definitions" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><symbol id="help-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.7-2.5 2-2.5 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="16.7" r=".9" fill="currentColor"/></symbol></svg>
 <a class="skip" href="#workspace">地図と結果へ</a>
 <header class="header">
   <a class="brand" href="./">日本産クモ類 生息候補地データベース</a>
@@ -60,8 +61,10 @@
         <div id="map-status" class="map-status" role="status"></div>
         <div class="map-legend"><span>メッシュ内の該当画素の割合</span><i class="legend-one"></i><span>0超～10%</span><i class="legend-two"></i><span>10～30%</span><i class="legend-three"></i><span>30%以上</span></div>
       </div>
-      <p class="map-caption">色のついた区画全体が生息地という意味ではありません。選択した生息環境のいずれかに合う画素を集計しています。背景：<a href="https://maps.gsi.go.jp/development/ichiran.html">地理院タイル</a>。低ズームの海岸線：United States, National Imagery and Mapping Agency, Vector Map Level 0 (VMAP0), 1997。</p>
-      <section class="evidence"><div class="section-heading"><h3 id="landcover-heading">対象にする土地被覆</h3><button id="reset-landcover" class="text-button">すべて戻す</button></div><p class="note">ボタンで対象を切り替えられます。選んだ生息環境の距離・植生条件は引き続き適用します。変更は他の種の比較・出力にも反映されます。</p><div id="rule-tags" class="tags" role="group" aria-labelledby="landcover-heading"></div><p id="landcover-status" class="note" role="status"></p><p id="pending-note"></p><p class="note" id="coverage-note"></p></section>
+      <div class="map-help"><span>地図の見方</span><button type="button" class="help-button" popovertarget="map-help" aria-label="地図の見方の補足"><svg aria-hidden="true"><use href="#help-icon"/></svg></button></div>
+      <div id="map-help" class="help-panel" popover aria-labelledby="map-help-title"><div class="help-heading"><h3 id="map-help-title">地図の見方</h3><button type="button" class="help-close" popovertarget="map-help" popovertargetaction="hide" aria-label="地図の補足を閉じる">×</button></div><p>色のついた区画全体が生息地という意味ではありません。選択した生息環境のいずれかに合う画素を集計しています。</p></div>
+      <p class="map-caption">背景：<a href="https://maps.gsi.go.jp/development/ichiran.html">地理院タイル</a>。低ズームの海岸線：United States, National Imagery and Mapping Agency, Vector Map Level 0 (VMAP0), 1997。</p>
+      <section class="evidence"><div class="section-heading"><div class="heading-with-help"><h3 id="landcover-heading">対象にする土地被覆</h3><button type="button" class="help-button" popovertarget="landcover-help" aria-label="土地被覆の選択と集計の補足"><svg aria-hidden="true"><use href="#help-icon"/></svg></button></div><button id="reset-landcover" class="text-button">すべて戻す</button></div><div id="landcover-help" class="help-panel" popover aria-labelledby="landcover-help-title"><div class="help-heading"><h3 id="landcover-help-title">土地被覆の選択と集計</h3><button type="button" class="help-close" popovertarget="landcover-help" popovertargetaction="hide" aria-label="土地被覆の補足を閉じる">×</button></div><p>ボタンで土地被覆をオン・オフできます。距離・植生の条件はそのまま適用され、変更は他の種の比較・保存にも共通で使われます。</p><p id="coverage-note" class="note"></p></div><div id="rule-tags" class="tags" role="group" aria-labelledby="landcover-heading"></div><p id="landcover-status" class="note" role="status"></p><p id="pending-note"></p></section>
     </div>
   </section>
   <section id="compare" class="view compare-view" hidden>
@@ -72,7 +75,7 @@
     <p id="comparison-scope" class="notice"></p>
     <div id="comparison-chart" class="comparison-chart"></div>
     <div tabindex="0" role="region" aria-label="表を横にスクロール" class="table-scroll"><table><caption>候補面積と環境の内訳</caption><thead><tr><th scope="col">種</th><th scope="col">候補面積</th><th scope="col">対象県数</th><th scope="col">環境別の候補面積</th><th scope="col">未評価の条件</th></tr></thead><tbody id="comparison-table"></tbody></table></div>
-    <p class="note">計算できない環境や土地被覆の欠損は面積に含まれません。扱えない環境が多い種の値が小さくなることがあるため、候補面積だけで希少性を比べることはできません。</p>
+    <div class="comparison-help"><span>面積を比べるときの注意</span><button type="button" class="help-button" popovertarget="comparison-help" aria-label="面積を比べるときの注意"><svg aria-hidden="true"><use href="#help-icon"/></svg></button></div><div id="comparison-help" class="help-panel" popover aria-labelledby="comparison-help-title"><div class="help-heading"><h3 id="comparison-help-title">面積を比べるときの注意</h3><button type="button" class="help-close" popovertarget="comparison-help" popovertargetaction="hide" aria-label="比較の補足を閉じる">×</button></div><p>計算できない環境や土地被覆の欠損は面積に含まれません。扱えない環境が多い種の値が小さくなることがあるため、候補面積だけで希少性を比べることはできません。</p></div>
   </section>
   <section id="guide" class="view methods-view" hidden>
     <h1>使い方</h1>

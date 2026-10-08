@@ -31,3 +31,7 @@
 環境規則は `id`（H001形式）、`label`（検索用の環境名）、`baseClasses`（基本版の対応）、`classes`（近似条件を含む対応）と、水域・人工構造物・海岸線・林縁・水田・河川中心線への距離条件、植生区分を持つ。`supported`、`proxy`、`pending`、`limitations` で計算の可否と限界を保持する。`elevation` は内部研究用に残すが、サイトの標高絞り込みは未実装。IDは入力環境語彙の並びから作るため、入力版が変われば同じ意味を指すとは限らない。共有URL・出力はデータ版とともに扱う。長い原文や出典のページ全文は含めない。
 
 既存のラスタ集計を維持したまま記録区分・環境規則を更新する場合は `python scripts/enrich_metadata.py --jsc local/jsc-live --habitat /path/to/habitat` を使う。これは画素の距離や標高を再計算する処理ではない。
+
+## 公開専用の配信契約（2026-10-08）
+
+公開用summaryは `localOnly:false`、`dem:false`、`publicationPolicy:public-without-dem-coast-river-2026-10-08` を必須とする。標高・海岸線距離・河川距離の集計ビットは除去し、海岸線・河川条件のある規則は `supported:false` と `publicationHold` を持つ。名称・規則の説明は検索可能だが、保留データを計算に使わない。`/data/spatial/` は公開用コピーだけを配信する。原本用の `/preview-data/` と `/preview-slides/` は配信しない。公開用成果物の作成手順は[公開前の確認](release-checklist.md)を参照。

@@ -7,9 +7,9 @@ import {pipeline} from 'node:stream';
 import {fileURLToPath} from 'node:url';
 const siteRoot=fileURLToPath(new URL('../site/',import.meta.url));
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.txt':'text/plain; charset=utf-8','.gz':'application/gzip'};
-const previewPath=/^\/preview-data\/(?:summary\.json|manifest\.json|delivery-manifest\.json|geography-manifest\.json|geography\.json\.gz|(?:summary|geography-index|map-pref-[1-9][0-9]?|map-region-[1-9][0-9]?|overview|(?:hokkaido|tohoku|kanto|chubu|kinki|chugoku|shikoku|kyushu|okinawa)-\d{2,3}-\d{2,3})-[a-f0-9]{12}\.json\.gz)$/;
+const previewPath=/^\/data\/spatial\/(?:summary\.json|manifest\.json|delivery-manifest\.json|geography-manifest\.json|geography\.json\.gz|(?:summary|geography-index|map-pref-[1-9][0-9]?|map-region-[1-9][0-9]?|overview|(?:hokkaido|tohoku|kanto|chubu|kinki|chugoku|shikoku|kyushu|okinawa)-\d{2,3}-\d{2,3})-[a-f0-9]{12}\.json\.gz)$/;
 
-export function createPreviewServer({root=siteRoot,previewRoot=path.resolve(root,'../local/spatial-reference'),slidesRoot=path.resolve(root,'../local/presentation'),strictCSP=false}={}){
+export function createPreviewServer({root=siteRoot,previewRoot=fs.existsSync(path.join(root,'data/spatial'))?path.join(root,'data/spatial'):path.resolve(root,'../local/public-spatial'),slidesRoot=fs.existsSync(path.join(root,'slides'))?path.join(root,'slides'):path.resolve(root,'../local/public-presentation'),strictCSP=false}={}){
   root=fs.realpathSync(root);
   const headers={};
   for(const line of fs.readFileSync(path.join(root,'_headers'),'utf8').split(/\r?\n/)){
@@ -28,8 +28,8 @@ export function createPreviewServer({root=siteRoot,previewRoot=path.resolve(root
     try{
       const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
       if(pathname.includes('\\')||pathname.includes('\0')||pathname.split('/').some(p=>p.startsWith('.')||p.startsWith('_')))return finish(404);
-      const slides=pathname.startsWith('/preview-slides/'),preview=pathname.startsWith('/preview-data/');
-      if(slides&&!/^\/preview-slides\/(?:manifest\.json|page-(?:0[1-9]|1[0-9]|20)\.png)$/.test(pathname))return finish(404);
+      const slides=pathname.startsWith('/slides/'),preview=pathname.startsWith('/data/spatial/');
+      if(slides&&!/^\/slides\/(?:manifest\.json|page-(?:0[1-9]|1[0-9]|20)\.png)$/.test(pathname))return finish(404);
       if(preview&&!previewPath.test(pathname))return finish(404);
       const confinedRoot=slides?await fsp.realpath(slidesRoot):preview?await fsp.realpath(previewRoot):root;
       const filename=await fsp.realpath(preview||slides?path.join(confinedRoot,path.basename(pathname)):path.resolve(root,'.'+(pathname==='/'?'/index.html':pathname)));

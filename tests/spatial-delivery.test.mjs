@@ -7,6 +7,7 @@ import {gzipSync} from 'node:zlib';
 import {createHash} from 'node:crypto';
 import {packSpatialDelivery} from '../scripts/pack-spatial-delivery.mjs';
 import {loadSpatial} from '../site/spatial.js';
+import {PUBLICATION_POLICY} from '../site/publication-policy.js';
 import {SPATIAL_MODEL} from '../site/spatial-model.js';
 
 test('lazy delivery preserves prefecture splits, island scope and GeoJSON without eager overviews',async t=>{
@@ -22,7 +23,7 @@ test('lazy delivery preserves prefecture splits, island scope and GeoJSON withou
   const sourceManifestSHA256=hash(await fs.readFile(path.join(root,'manifest.json')));
   const summary=Object.fromEntries(Array.from({length:47},(_,i)=>[i+1,{areas:{320:i===0?3:5},meshes:1}]));
   const rule={id:'H001',label:'森林',baseClasses:[5],classes:[5],elevation:[0,1,2,3],supported:true,edge:false,rice:false,river:false,vegetation:0,coast:false,water:false,built:false,pending:[],limitations:[]};
-  await write('summary.json',{schema:5,model:SPATIAL_MODEL,localOnly:true,summary,rules:{1:[rule]}});
+  await write('summary.json',{schema:5,model:SPATIAL_MODEL,localOnly:false,dem:false,publicationPolicy:PUBLICATION_POLICY,summary,rules:{1:[rule]}});
   const regions={1:{pref:1,areas:{320:3},meshes:1,bounds:[131,31,132,32],names:['島A']},2:{pref:2,areas:{320:5},meshes:1,bounds:[131,31,132,32],names:['本土']}};
   const g={schema:1,sourceManifestSHA256,regions,tiles:{[id]:[[0,1],[1,2]]},mainland:{2:'2'},islands:{島A:'1'},overview:cells.map((r,i)=>[...r,i+1])};
   const packed=gzipSync(Buffer.from(JSON.stringify(g)));await write('geography.json.gz',packed);await write('geography-manifest.json',{schema:1,sha256:hash(packed)});

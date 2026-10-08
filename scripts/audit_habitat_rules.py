@@ -1,8 +1,29 @@
-"""Write the complete habitat/condition review and optionally refresh preview rules."""
+"""Write the public habitat review; research rule refresh requires --research."""
 import argparse, collections, json
 from pathlib import Path
 from build_data import ROOT
 from spatial_rules import spatial_rule
+
+def public_audit(args):
+    source=json.loads(args.summary.read_text(encoding='utf-8'))
+    if source.get('localOnly') is not False or source.get('dem') is not False or not source.get('publicationPolicy'):
+        raise ValueError('Public review requires the prepared public summary')
+    catalog=json.loads((ROOT/'site/data/catalog.json').read_text(encoding='utf-8'))
+    rules={r['id']:r for rs in source['rules'].values() for r in rs}
+    status=lambda r:'配布条件の確認待ち' if r.get('publicationHold') else '未評価' if not r['supported'] else '近似条件' if r['proxy'] else '条件を計算'
+    counts=collections.Counter(status(r) for r in rules.values())
+    lines=['# 生息環境の対応一覧','',f"2026-10-08。公開用の規則から生成。全{len(rules)}環境のうち{counts['条件を計算']+counts['近似条件']}環境を計算、{counts['配布条件の確認待ち']}環境は配布条件の確認待ち、{counts['未評価']}環境はその他の未評価。すべて名称で検索できる。標高による限定は現在行わない。",'', '| ID | 環境名 | 現在の条件 | 扱い | 限界・保留理由 |','| --- | --- | --- | --- | --- |']
+    vegetation={1:'果樹園',2:'植林地',3:'牧草地',4:'ハイマツ群落',5:'低木群落'}
+    for rid,r in sorted(rules.items()):
+        conditions=['・'.join(catalog['classes'][c] for c in r['classes'])]
+        for key,label in [('water','水域'),('built','人工構造物'),('edge','林縁'),('rice','水田')]:
+            if r[key]:conditions.append(label+'から指定距離以内')
+        if r['vegetation']:conditions.append('植生図の'+vegetation[r['vegetation']])
+        condition=' AND '.join(conditions) if r['supported'] else '地図・面積へ加算しない'
+        notes='。'.join(r['limitations'] if r['supported'] else r['pending'])
+        lines.append('| '+' | '.join([rid,r['label'].replace('~','～').replace('〜','～'),condition,status(r),notes or '指定した条件を使用'])+' |')
+    args.out.write_text('\n'.join(lines)+'\n',encoding='utf-8')
+    print(json.dumps({'total':len(rules),'status':dict(counts),'output':str(args.out)},ensure_ascii=False))
 
 def audit(args):
     source=json.loads(args.summary.read_text(encoding='utf-8'))
@@ -48,4 +69,8 @@ def audit(args):
     print(json.dumps({'total':len(rules),'status':dict(counts),'output':str(args.out),'refreshed':args.refresh},ensure_ascii=False))
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('--summary',type=Path,default=ROOT/'local/spatial-reference/summary.json');p.add_argument('--out',type=Path,default=ROOT/'docs/habitat-condition-review.md');p.add_argument('--refresh',action='store_true');audit(p.parse_args())
+    p=argparse.ArgumentParser();p.add_argument('--summary',type=Path);p.add_argument('--out',type=Path);p.add_argument('--research',action='store_true');p.add_argument('--refresh',action='store_true');args=p.parse_args()
+    if args.refresh and not args.research:p.error('--refresh requires --research')
+    args.summary=args.summary or ROOT/('local/spatial-reference/summary.json' if args.research else 'local/public-spatial/summary.json')
+    args.out=args.out or ROOT/('local/research-habitat-review.md' if args.research else 'docs/habitat-condition-review.md')
+    (audit if args.research else public_audit)(args)

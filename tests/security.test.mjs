@@ -23,8 +23,8 @@ test('preview enforces origin, method and root boundaries, CSP, compression and 
   assert.equal((await request('/',{},'HEAD')).body.length,0);assert.equal((await request('/',{'Accept-Encoding':'gzip;q=0'})).headers['content-encoding'],undefined);
   for(const [headers,status] of [[{Host:'attacker.example'},403],[{'Sec-Fetch-Site':'cross-site'},403],[{Origin:'https://attacker.example'},403],[{Origin:`http://127.0.0.1:${port}`},200]])assert.equal((await request('/',headers)).status,status);
   assert.equal((await request('/',{},'POST')).status,405);
-  for(const url of ['/../outside.txt','/%2e%2e/outside.txt','/%2e%2e%5coutside.txt','/.git/config','/_headers','/preview-data/notes.txt','/preview-data/../../outside.txt','/preview-slides/page-21.png','/%00'])assert.equal((await request(url)).status,404,url);
-  assert.equal((await request('/%zz')).status,400);assert.equal((await request('/'+'x'.repeat(8200))).status,414);assert.equal((await request('/preview-data/summary.json')).status,200);
+  for(const url of ['/../outside.txt','/%2e%2e/outside.txt','/%2e%2e%5coutside.txt','/.git/config','/_headers','/data/spatial/notes.txt','/data/spatial/../../outside.txt','/slides/page-21.png','/preview-data/summary.json','/preview-slides/page-01.png','/%00'])assert.equal((await request(url)).status,404,url);
+  assert.equal((await request('/%zz')).status,400);assert.equal((await request('/'+'x'.repeat(8200))).status,414);assert.equal((await request('/data/spatial/summary.json')).status,200);
   await fs.symlink(dir,path.join(root,'escape'),'junction');assert.equal((await request('/escape/outside.txt')).status,404);
 });
 

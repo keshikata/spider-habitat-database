@@ -8,11 +8,14 @@ export function selectedRules(species,rules,settings){
   return Array.isArray(ids)?rules.filter(r=>ids.includes(r.id)):rules;
 }
 export function habitatMetadata(species,rules,settings){
-  return selectedRules(species,rules,settings).map(r=>({id:r.id,label:r.label,classes:r.supported===false?[]:includedClasses(settings.model==='cover'?(r.baseClasses??r.classes):r.classes,settings),excluded_landcover_classes:excludedClasses(settings.excludedClasses),water_distance_m:settings.model!=='cover'&&r.water?Number(settings.distance):null,coast_distance_m:settings.model!=='cover'&&r.coast?Number(settings.distance):null,built_distance_m:settings.model!=='cover'&&r.built?Number(settings.distance):null,forest_edge_distance_m:settings.model!=='cover'&&r.edge?Number(settings.distance):null,paddy_distance_m:settings.model!=='cover'&&r.rice?Number(settings.distance):null,river_distance_m:settings.model!=='cover'&&r.river?Number(settings.distance):null,vegetation_group:r.vegetation||null,elevation_bands:settings.model==='elevation'?r.elevation:null,evaluation:r.supported===false?'unavailable':!includedClasses(settings.model==='cover'?(r.baseClasses??r.classes):r.classes,settings).length?'excluded_landcover':r.proxy?'proxy':'calculated',unresolved:r.pending||[],limitations:r.limitations||[]}));
+  return selectedRules(species,rules,settings).map(r=>{
+    const usable=r.supported!==false,distance=usable&&settings.model!=='cover';
+    return {id:r.id,label:r.label,classes:usable?includedClasses(settings.model==='cover'?(r.baseClasses??r.classes):r.classes,settings):[],excluded_landcover_classes:excludedClasses(settings.excludedClasses),water_distance_m:distance&&r.water?Number(settings.distance):null,coast_distance_m:distance&&r.coast?Number(settings.distance):null,built_distance_m:distance&&r.built?Number(settings.distance):null,forest_edge_distance_m:distance&&r.edge?Number(settings.distance):null,paddy_distance_m:distance&&r.rice?Number(settings.distance):null,river_distance_m:distance&&r.river?Number(settings.distance):null,vegetation_group:usable?r.vegetation||null:null,elevation_bands:usable&&settings.model==='elevation'?r.elevation:null,evaluation:r.publicationHold?.length?'publication_hold':!usable?'unavailable':!includedClasses(settings.model==='cover'?(r.baseClasses??r.classes):r.classes,settings).length?'excluded_landcover':r.proxy?'proxy':'calculated',unresolved:r.pending||[],limitations:r.limitations||[]};
+  });
 }
 export function acceptedKeys(species,rules,settings){
   const active=selectedRules(species,rules,settings).filter(r=>r.supported!==false).map(r=>({...r,classes:includedClasses(r.classes,settings)}));
-  const cover=includedClasses(Array.isArray(settings.habitats?.[species.id])?active.flatMap(r=>r.baseClasses??r.classes):species.classes,settings);
+  const cover=includedClasses(rules.length?active.flatMap(r=>r.baseClasses??r.classes):species.classes,settings);
   const signature=JSON.stringify([settings.model,settings.distance,cover,active.map(r=>[r.classes,r.edge,r.rice,r.coast,r.water,r.built,r.elevation,r.river,r.vegetation])]);
   if(maskCache.has(signature))return maskCache.get(signature);
   const result=new Uint8Array(STRATA),limit=[100,250,500].indexOf(Number(settings.distance));
@@ -42,7 +45,7 @@ export function effectiveSpecies(data,s,settings){
   if(settings.model==='cover'&&rules.some(r=>r.water))pending.push('水域への距離');
   if(settings.model==='cover'&&rules.some(r=>r.coast))pending.push('海岸線への距離');
   if(settings.model==='cover'&&rules.some(r=>r.built))pending.push('人工構造物への距離');
-  return {...s,classes,availableClassCount:available.length,pending:[...new Set(pending)],mappedEnvironmentCount:rules.filter(r=>r.supported!==false&&includedClasses(settings.model==='cover'?(r.baseClasses??r.classes):r.classes,settings).length).length,selectedEnvironmentCount:rules.length};
+  return {...s,classes,publicationHoldCount:rules.filter(r=>r.publicationHold?.length).length,availableClassCount:available.length,pending:[...new Set(pending)],mappedEnvironmentCount:rules.filter(r=>r.supported!==false&&includedClasses(settings.model==='cover'?(r.baseClasses??r.classes):r.classes,settings).length).length,selectedEnvironmentCount:rules.length};
 }
 export function summarizeSpatial(catalog,data,s,settings){
   const prefs=prefecturesFor(catalog,settings.region,settings.pref,settings.scope,s),mask=acceptedKeys(s,data.rules[s.id]||[],settings),areas=Array(16).fill(0);

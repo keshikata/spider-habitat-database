@@ -9,7 +9,7 @@ export function verifyAssetDigest(buffer,info,name){
 
 export const APPLICATION_ASSETS=[
   'index.html','style.css','app.js','model.js','map.js','spatial.js','spatial-model.js',
-  'record-geography.js','habitat-selection.js','comparison.js','delivery.js','publication-policy.js','favicon.svg','ogp-2026-10-09.png','robots.txt','_headers',
+  'record-geography.js','habitat-selection.js','comparison.js','delivery.js','publication-policy.js','favicon.svg','ogp-2026-10-09.png','ogp-2026-10-09-v2.png','robots.txt','_headers',
   ...['leaflet.js','leaflet.css','LICENSE.txt',...['layers','layers-2x','marker-icon','marker-icon-2x','marker-shadow'].map(n=>'images/'+n+'.png')].map(n=>'vendor/leaflet/'+n),
 ];
 

@@ -22,7 +22,7 @@ export function checkSharing(root){
   assert.equal(tags.get('twitter:image'),tags.get('og:image'));
   assert.equal(tags.get('twitter:image:alt'),tags.get('og:image:alt'));assert.ok(tags.get('og:image:alt'));
   const url=new URL(tags.get('og:image'));assert.equal(url.origin,new URL(origin).origin);assert.equal(url.search,'');
-  const imagePath=url.pathname.slice(1);assert.match(imagePath,/^ogp-\d{4}-\d{2}-\d{2}\.png$/);
+  const imagePath=url.pathname.slice(1);assert.match(imagePath,/^ogp-\d{4}-\d{2}-\d{2}(?:-v[1-9]\d*)?\.png$/);
   const image=fs.readFileSync(path.join(root,imagePath));
   assert.deepEqual(image.subarray(0,8),Buffer.from([137,80,78,71,13,10,26,10]));
   assert.equal(image.toString('ascii',12,16),'IHDR');assert.ok(image.length<5*1024*1024);

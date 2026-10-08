@@ -55,6 +55,28 @@ Twitterbot/1.0のUser-AgentでもHTMLと画像がHTTP200で、ローカル版と
 node scripts/check-deployment.mjs https://spider-habitat-atlas.pages.dev/ output/release-2026-10-09-ogp
 ```
 
+## 2026-10-09：OpusによるOGP再設計
+
+ユーザー指定のClaude Opus 5.5・highでゼロから再設計。実際の描画を同モデルへ見せて仕上げ、紙色の背景と紺の題名、円網を使った独自模式図へ変更した。
+
+| 項目 | 値 |
+| --- | --- |
+| 配信ID | `2307a234-25ec-48e3-b884-cc69710e7dde` |
+| この版のURL | https://2307a234.spider-habitat-atlas.pages.dev/ |
+| 公開時のソース | `0875c3a` |
+| 保存した公開フォルダ | `output/release-2026-10-09-ogp-opus/` |
+| 公開フォルダの識別値 | `1bc68c4eb2ff4fbbf0e632f866ed329ff70b31c609a6b715c7ab84e382f6d154` |
+| ファイル | 2,408ファイル、334,317,091 bytes |
+| 現行共有画像 | `ogp-2026-10-09-v2.png`、1200 × 630 px、346,199 bytes |
+
+JS33件、check.mjs・check-packed.mjs、公開フォルダの許可リスト・ハッシュ・非公開文言の除外検査が合格。本番37ファイル（19,311,431 bytes）の内容一致と安全な配信、TwitterbotのUser-Agentによる取得も合格した。
+公開直後の初回検査だけ旧HTMLが返った。公開URLと版固有URLの更新反映を確認してから再検査し、正常終了した。
+初版のPNG URLは維持する。計算・地理データ・資料画像は変更しない。実際のX投稿でのカード描画は未確認。
+
+```sh
+node scripts/check-deployment.mjs https://spider-habitat-atlas.pages.dev/ output/release-2026-10-09-ogp-opus
+```
+
 ## 最初の1週間
 
 | 優先度 | 作業 | 完了の目安 |

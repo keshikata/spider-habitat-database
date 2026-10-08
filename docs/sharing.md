@@ -3,8 +3,8 @@
 OGPとXの大きな画像カードに対応。画像はサイト全体を紹介する共通カードで、種や地域ごとの個別カードではない。条件付きのURLはそのまま操作を再現できる。
 
 - 公開URL： https://spider-habitat-atlas.pages.dev/
-- 画像： https://spider-habitat-atlas.pages.dev/ogp-2026-10-09.png
-- 画像寸法：1200 × 630 px、PNG、101,625 bytes。
+- 画像： https://spider-habitat-atlas.pages.dev/ogp-2026-10-09-v2.png
+- 画像寸法：1200 × 630 px、PNG、346,199 bytes。
 - サイト名、説明、正規URL、画像の寸法・形式・代替テキストをHTMLのheadへ記載する。
 - X用のカード指定は `summary_large_image`。個人アカウント情報は追加しない。
 - 画像は独自の文字・模式図と利用条件を確認したNoto Sans JPのみで作成。詳しくは[素材と利用条件](sources.md)を参照。
@@ -19,3 +19,10 @@ OGPとXの大きな画像カードに対応。画像はサイト全体を紹介�
 新しい投稿でのSNS側の表示確認は、公開HTML・画像の配信確認とは別に行う。カード確認のためだけに投稿を送信する必要はない。
 
 仕様：[Open Graph protocol](https://ogp.me/)。
+
+## 2026-10-09 再設計
+
+ユーザーの指定によりClaude Opus 5.5、effort highへゼロからの再設計を依頼した。モデルの返却結果はcanonicalModel `claude-opus-5-5`。
+紙色の背景、紺の題名、円網の網目の一部を青緑で塗った独自の模式図へ変更。ボタン風の装飾とクモの汎用アイコンを外した。
+描画した画像をOpusにも見せて確認し、網の線の強さを調整。最終描画をCodexが確認し、再描画のハッシュ一致も検証した。
+初版の画像URLも配信を維持する。新しい画像のファイル名と代替テキストをOGP・Xの両方で更新した。

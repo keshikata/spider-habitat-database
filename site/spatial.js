@@ -19,15 +19,20 @@ function validInfo(info,prefix){const overview=prefix==='overview';return info&&
 const intersects=(t,b)=>100+t.bounds[2]/320>=b.west&&100+t.bounds[0]/320<=b.east&&t.bounds[3]/480>=b.south&&t.bounds[1]/480<=b.north;
 export async function loadSpatial(){
   const deliveryInfo=await json('delivery-manifest.json',40000),delivery=deliveryInfo?validateDelivery(deliveryInfo):null;
-  const data=delivery?await readCompressed(base+delivery.summary.file,delivery.summary):await json('summary.json',64000000);if(!data)throw new Error('公開用データがありません');
+  const geographyInfo=delivery?{...delivery.geography,schema:1,sourceManifestSHA256:delivery.sourceManifestSHA256}:await json('geography-manifest.json',2000);
+  if(geographyInfo&&(geographyInfo.schema!==1||!/^[a-f0-9]{64}$/.test(geographyInfo.sha256)||!/^[a-f0-9]{64}$/.test(geographyInfo.sourceManifestSHA256)))throw new Error('地域データの情報が不正です');
+  // Independent validated assets can load together; no map tiles are fetched here.
+  const [data,geographyData]=await Promise.all([
+    delivery?readCompressed(base+delivery.summary.file,delivery.summary):json('summary.json',64000000),
+    geographyInfo?readCompressed(base+(delivery?delivery.geography.file:'geography.json.gz'),geographyInfo):null,
+  ]);
+  if(!data)throw new Error('公開用データがありません');
   if(data.schema!==5||data.model!==SPATIAL_MODEL||(data.localOnly!==false||data.publicationPolicy!==PUBLICATION_POLICY||data.dem!==false)||Object.keys(data.summary||{}).length!==47)throw new Error('追加データの形式が不正です');
   for(let p=1;p<=47;p++){const r=data.summary[p];if(!r||!validAreas(r.areas)||!Number.isSafeInteger(r.meshes)||r.meshes<0)throw new Error('集計データが不正です');}
   for(const [id,rules] of Object.entries(data.rules||{})){if(!/^\d{1,5}$/.test(id)||!Array.isArray(rules)||rules.length>100)throw new Error('環境条件が不正です');for(const r of rules)if(!/^H\d{3,4}$/.test(r.id)||typeof r.label!=='string'||r.label.length>500||!Array.isArray(r.baseClasses)||r.baseClasses.some(c=>!Number.isInteger(c)||c<1||c>15)||!Array.isArray(r.classes)||r.classes.some(c=>!Number.isInteger(c)||c<1||c>15)||!Array.isArray(r.elevation)||r.elevation.some(c=>!Number.isInteger(c)||c<0||c>3)||typeof r.supported!=='boolean'||typeof r.edge!=='boolean'||typeof r.rice!=='boolean'||typeof r.river!=='boolean'||!Number.isInteger(r.vegetation)||r.vegetation<0||r.vegetation>5||!Array.isArray(r.limitations)||r.limitations.some(v=>typeof v!=='string'||v.length>500)||typeof r.coast!=='boolean'||typeof r.water!=='boolean'||typeof r.built!=='boolean'||!Array.isArray(r.pending)||r.pending.some(p=>typeof p!=='string'))throw new Error('環境条件が不正です');}
   for(const rules of Object.values(data.rules))for(const r of rules)if(r.supported&&(r.coast||r.river))throw new Error('保留中の条件が有効です');
-  const geographyInfo=delivery?{...delivery.geography,schema:1,sourceManifestSHA256:delivery.sourceManifestSHA256}:await json('geography-manifest.json',2000);
   if(geographyInfo){
-    if(geographyInfo.schema!==1||!/^[a-f0-9]{64}$/.test(geographyInfo.sha256)||!/^[a-f0-9]{64}$/.test(geographyInfo.sourceManifestSHA256))throw new Error('地域データの情報が不正です');
-    const g=await readCompressed(base+(delivery?delivery.geography.file:'geography.json.gz'),geographyInfo);
+    const g=geographyData;
     if(delivery)g.overview=[];
     if(g.schema!==1||g.sourceManifestSHA256!==geographyInfo.sourceManifestSHA256||!g.regions||Object.keys(g.regions).length>1000||!Array.isArray(g.overview)||g.overview.length>30000)throw new Error('地域データが不正です');
     for(const [id,r] of Object.entries(g.regions))if(!/^\d{1,6}$/.test(id)||!Number.isInteger(r.pref)||r.pref<1||r.pref>47||!validAreas(r.areas)||!Number.isSafeInteger(r.meshes)||r.meshes<0||r.bounds?.length!==4||r.bounds.some(v=>!Number.isFinite(v))||r.bounds[0]<120||r.bounds[2]>155||r.bounds[1]<20||r.bounds[3]>46)throw new Error('地域集計が不正です');

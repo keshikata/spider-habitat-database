@@ -2,6 +2,8 @@
 
 2026-10-08更新。Cloudflare Pagesの空プロジェクト `spider-habitat-atlas` を作成済み。サイトはまだデプロイしていない。
 
+公開前の改善・回帰確認と、検証した公開候補の識別値は[最終確認](prepublication-check.md)に記録した。
+
 ## 公開する範囲
 
 無料・非商用、静的ファイルだけで運営する。JAXA土地被覆・水域/人工構造物/林縁/水田への距離・植生・県/本土/島区分と、JSCに基づく検索を提供する。保留中の海岸線距離・河川距離・標高データは配布しない。環境名による検索は残す。素材ごとの根拠は[sources.md](sources.md)。
@@ -13,9 +15,10 @@ node scripts/prepare-public-spatial.mjs
 node scripts/check-public-spatial.mjs
 python scripts/audit_habitat_rules.py
 node scripts/build-public-site.mjs
+node scripts/check-public-site.mjs
 ```
 
-出力先は新規または空のディレクトリにする。古いファイルが混ざる場合はビルドを止める。`build-public-site.mjs` は明示したアプリ資産・検証済みマニフェストの参照先・確認済み資料画像20枚だけを `output/public-site/` にコピーする。DEM・海岸線距離・河川距離のビットが数値に残っていないこと、ハッシュ、ファイル数と最大サイズを確認する。元GIS、研究CSV、PPTX、PC内パス、申請控えは含めない。
+出力先は新規または空のディレクトリにする。古いファイルが混ざる場合はビルドを止める。`build-public-site.mjs` は明示したアプリ・ライブラリ資産、検証済みマニフェストの参照先、確認済み資料画像20枚だけを `output/public-site/` にコピーする。DEM・海岸線距離・河川距離のビットが数値に残っていないこと、ハッシュ、展開後のサイズ、ファイル数と最大サイズを確認する。`check-public-site.mjs` は完成したフォルダの許可リスト、余分なファイル・シンボリックリンクの混入、配信ファイルのハッシュ、私的なPC内パス・秘密鍵・除外対象の氏名がテキストへ残っていないことを検査し、公開候補全体の識別用ハッシュを出す。画像内の内容は確認済み画像とのハッシュ一致で管理する。元GIS、研究CSV、PPTX、申請控えは含めない。
 
 ## 許諾待ちを公開の条件にしない
 
@@ -38,3 +41,5 @@ node scripts/build-public-site.mjs
 - ユーザーの公開指示を受けて `wrangler pages deploy output/public-site --project-name spider-habitat-atlas --branch main` を実行し、HTTPS・CSP・配信ヘッダー・ファイル取得を確認する。
 
 この文書は配信準備を示し、デプロイや許諾問い合わせを実行済みとするものではない。
+
+公開後に不具合が見つかった場合は、新しい配信を止め、保持した前回の検証済みフォルダと配信履歴から復旧する。初回公開で戻す版がない場合は公開停止を判断する。原因不明のまま研究用フォルダや未検証のデータへ差し替えない。

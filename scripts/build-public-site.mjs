@@ -4,6 +4,7 @@ import {gunzipSync} from 'node:zlib';
 import {createHash} from 'node:crypto';
 import {validateDelivery} from '../site/delivery.js';
 import {PUBLICATION_POLICY,publicStratum} from '../site/publication-policy.js';
+import {APPLICATION_ASSETS} from './public-assets.mjs';
 const out=path.resolve(process.argv[2]||'output/public-site'),spatial=path.resolve(process.argv[3]||'local/public-spatial'),slides=path.resolve(process.argv[4]||'local/public-presentation');
 if(fs.existsSync(out)&&fs.readdirSync(out).length)throw new Error('Output must be a new empty directory');
 const read=n=>JSON.parse(fs.readFileSync(path.join(spatial,n))),d=validateDelivery(read('delivery-manifest.json')),m=read('manifest.json');
@@ -11,7 +12,10 @@ function verified(info){
   if(path.basename(info.file)!==info.file)throw new Error('Invalid asset path');
   const b=fs.readFileSync(path.join(spatial,info.file));
   if(b.length!==info.bytes||createHash('sha256').update(b).digest('hex')!==info.sha256)throw new Error('Asset digest mismatch');
-  return JSON.parse(gunzipSync(b));
+  if(!Number.isSafeInteger(info.decodedBytes)||info.decodedBytes<1||info.decodedBytes>128000000)throw new Error('Invalid decoded size');
+  const decoded=gunzipSync(b,{maxOutputLength:info.decodedBytes});
+  if(decoded.length!==info.decodedBytes)throw new Error('Decoded size mismatch');
+  return JSON.parse(decoded);
 }
 const summary=verified(d.summary);
 if(summary.publicationPolicy!==PUBLICATION_POLICY||summary.dem!==false||summary.localOnly!==false)throw new Error('Research data must not be published');
@@ -29,9 +33,8 @@ for(let n=1;n<=20;n++){
 }
 fs.mkdirSync(out,{recursive:true});
 function copy(src,relative){const dest=path.join(out,relative);fs.mkdirSync(path.dirname(dest),{recursive:true});fs.copyFileSync(src,dest);}
-// Explicit application assets; source datasets, inputs and research files cannot enter.
-for(const name of ['index.html','style.css','app.js','model.js','map.js','spatial.js','spatial-model.js','record-geography.js','habitat-selection.js','comparison.js','delivery.js','publication-policy.js','favicon.svg','_headers'])copy(path.join('site',name),name);
-fs.cpSync('site/vendor',path.join(out,'vendor'),{recursive:true});
+// Copy only named application/vendor assets, never an entire source directory.
+for(const name of APPLICATION_ASSETS)copy(path.join('site',name),name);
 for(const name of ['search.json','search.json.gz','taxonomy-crosswalk.json'])copy(path.join('site/data',name),'data/'+name);
 for(const name of ['manifest.json','delivery-manifest.json',...infos.map(i=>i.file)])copy(path.join(spatial,name),'data/spatial/'+name);
 copy(path.join(slides,'manifest.json'),'slides/manifest.json');

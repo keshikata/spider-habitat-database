@@ -32,6 +32,7 @@ node scripts/prepare-public-spatial.mjs
 node scripts/check-public-spatial.mjs
 python scripts/audit_habitat_rules.py
 node scripts/build-public-site.mjs
+node scripts/check-public-site.mjs
 npm run dev
 ```
 
@@ -51,7 +52,7 @@ npm run dev
 
 Cloudflare Pagesの無料プランとpages.dev URLを使い、Functions・DB・有料ストレージは使わない構成です。空プロジェクトを作成済みで、まだデプロイしていません。公開には[公開手順](docs/release-checklist.md)に従い、検証済みフォルダのみを使用します。保留中のデータを初版から除くため、その許諾回答を公開条件にしません。
 
-JavaScript30件・Python20件の回帰テストと、全2,260タイルの公開用変換照合を実施しました。公開後のHTTPS・配信ヘッダーの確認はデプロイ時に行います。
+JavaScript33件・Python20件の回帰テストと、全2,260タイルの公開用変換照合、公開候補2,405ファイルの許可リスト・ハッシュ検査を実施しました。6ページ×6サイズの表示確認も完了しています。[最終確認の結果と測定範囲](docs/prepublication-check.md)を参照してください。公開後のHTTPS・配信ヘッダーの確認はデプロイ時に行います。
 
 ## 利用条件・連絡先
 

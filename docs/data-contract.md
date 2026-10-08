@@ -8,6 +8,8 @@
 
 生息環境の入力CSVは `Scientific Name` と `habitat_text` の列を持つ。利用権限のある資料を用意し、元の図鑑記述をそのまま配信しない。
 
+種の `recordAreas` は県番号をキーとし、`mainland`（本土部の記録の有無）、`islands`（島名の重複なし配列）、`unspecified`（島名不明の記録の有無）を保持する。北海道・本州・四国・九州を本土部とし、不明を本土へ振り分けない。JSCの通常記録のみを使用する。この区分は記録の説明用で、島のポリゴンによる候補面積の限定ではない。
+
 環境集計は9地域のJSONを入力する。`version: 3`、`grid: "third_order"`、`aggregation: "all_source_pixel_centers_by_prefecture"`。`cells` は `[第3次メッシュコード, [[県番号, 16分類の画素数]]]` の配列で、県境重複のない単一県の区画を対象とする。画素格子は1/12000度。分類コード0は未分類、1〜15は公開ページに示したJAXAの分類に対応する。異なる版・格子・分類のデータへ無検証で差し替えない。
 
 研究資料の学名対応は `site/data/taxonomy-crosswalk.json` の `rows` に置く。各行は `sourceName`、`status`、`catalogName`、`catalogId`、`acceptedName`、`relation`、`note`、`evidence` を持つ。`status: "mapped"` の場合だけ統合し、元資料の種概念を確認する。対応が不要な新しい入力だけを使う場合は `{"rows": []}` から始められる。WSC由来の対応情報には所定の出典と利用条件を付す。
@@ -25,3 +27,7 @@
 ## 距離・標高のローカル試作
 
 [250m試作の入力・計算・出力](spatial-model.md)を参照。追加ラスタ入力は読み取り専用で、出力先は `local/spatial/`。`node scripts/check-spatial.mjs` は全圧縮ファイルのハッシュ、区画の重複、広域集計の画素数、県別面積を検査する。これらのデータを `site/` や公開リポジトリへ自動コピーしない。
+
+環境規則は `id`（H001形式）、`label`（検索用の環境名）、`baseClasses`（土地被覆のみの対応）、`classes`（代理条件を含む対応）、`water`、`built`、`elevation`、`pending` を持つ。IDは入力環境語彙の並びから作るため、入力版が変われば同じ意味を指すとは限らない。共有URL・出力はデータ版とともに扱う。長い原文や出典のページ全文は含めない。
+
+既存のラスタ集計を維持したまま記録区分・環境規則を更新する場合は `python scripts/enrich_metadata.py --jsc local/jsc-live --habitat /path/to/habitat` を使う。これは画素の距離や標高を再計算する処理ではない。

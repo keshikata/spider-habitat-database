@@ -11,7 +11,7 @@ import numpy as np
 import rasterio
 from rasterio.windows import Window
 from scipy.ndimage import distance_transform_edt
-from build_data import ROOT, mesh_xy, pixel_area_km2, resolve_name, norm
+from build_data import ROOT, mesh_xy, pixel_area_km2, resolve_name, norm, classify
 from spatial_rules import spatial_rule
 
 STEP = 16  # third-order cells per tile; each is divided into four on both axes
@@ -118,10 +118,13 @@ def build(args):
     byname={s['catalogScientific']:s for s in catalog['species']}
     cross={r['sourceName']:r for r in json.loads((ROOT/'site/data/taxonomy-crosswalk.json').read_text(encoding='utf-8'))['rows']}
     with (args.habitat/'Spiceis habitat index.csv').open(encoding='utf-8-sig',newline='') as f:
-        for row in csv.DictReader(f):
+        habitat_rows=list(csv.DictReader(f))
+        ids={h:f'H{i+1:03d}' for i,h in enumerate(sorted({norm(r['habitat_text']) for r in habitat_rows}))}
+        for row in habitat_rows:
             name=resolve_name(row['Scientific Name'],byname,cross)
             if name:
-                rule=spatial_rule(row['habitat_text']); rs=rules.setdefault(byname[name]['id'],[])
+                text=norm(row['habitat_text'])
+                rule={**spatial_rule(text),'id':ids[text],'label':text,'baseClasses':classify(text)['classes']}; rs=rules.setdefault(byname[name]['id'],[])
                 if rule not in rs: rs.append(rule)
     output=args.out.resolve(); output.mkdir(parents=True,exist_ok=True)
     jobs=[]; sources=[]

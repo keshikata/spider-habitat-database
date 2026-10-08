@@ -8,7 +8,7 @@ const root=fileURLToPath(new URL('../site/',import.meta.url));
 const d=JSON.parse(fs.readFileSync(path.join(root,'data/catalog.json'),'utf8'));
 assert.equal(d.model,MODEL);
 const ids=new Set(),meshes=new Set(), totals=Object.fromEntries(d.prefectures.map((_,i)=>[i+1,Array(16).fill(0)]));
-for(const s of d.species){assert.ok(/^\d{1,5}$/.test(s.id));assert.ok(!ids.has(s.id));ids.add(s.id);assert.ok(s.name&&s.scientific);assert.deepEqual(Object.keys(s).sort(),['id','name','scientific','catalogScientific','author','family','familyJa','genus','classes','pending','ruleIds','aliases','taxonomyNotes','environmentCount','mappedEnvironmentCount','records'].sort());for(const c of s.classes)assert.ok(Number.isInteger(c)&&c>=1&&c<=15);}
+for(const s of d.species){assert.ok(/^\d{1,5}$/.test(s.id));assert.ok(!ids.has(s.id));ids.add(s.id);assert.ok(s.name&&s.scientific);assert.deepEqual(Object.keys(s).sort(),['id','name','scientific','catalogScientific','author','family','familyJa','genus','classes','pending','ruleIds','aliases','taxonomyNotes','environmentCount','mappedEnvironmentCount','records','recordAreas'].sort());for(const c of s.classes)assert.ok(Number.isInteger(c)&&c>=1&&c<=15);}
 let total=0;
 for(const region of Object.keys(d.regions)){
   const file=path.join(root,'data',region+'.json'),buffer=fs.readFileSync(file),data=JSON.parse(buffer);

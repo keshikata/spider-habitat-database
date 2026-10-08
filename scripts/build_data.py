@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import unicodedata
 from sync_jsc import decode
+from jsc_geography import record_geography
 
 ROOT = Path(__file__).resolve().parents[1]
 REGIONS = {'hokkaido': [1], 'tohoku': list(range(2, 8)), 'kanto': list(range(8, 15)),
@@ -155,6 +156,7 @@ def build(args):
             record_by_species[key][PREFS.index(pref)+1] += 1
         else:
             ignored_records += 1
+    geography = record_geography(records, byname, PREFS, norm)
     species = []
     for name,row in byname.items():
         hs = sorted(habitat_by_species[name])
@@ -172,7 +174,7 @@ def build(args):
                         'taxonomyNotes': [{'sourceName':r['sourceName'],'acceptedName':r['acceptedName'],'relation':r['relation'],
                                            'note':r['note'],'url':r['evidence'][0]['url']} for r in crosswalk.values() if r['status']=='mapped' and r['catalogName']==name],
                         'environmentCount': len(hs), 'mappedEnvironmentCount': sum(bool(r['classes']) for r in selected),
-                        'records': dict(sorted(record_by_species[name].items()))})
+                        'records': dict(sorted(record_by_species[name].items())), 'recordAreas': geography.get(name, {})})
     species.sort(key=lambda s: int(s['id']))
     summary = {str(i): {'areas': [0.0]*16, 'pixels': [0]*16, 'meshes': 0} for i in range(1,48)}
     inventory, allids = {}, set()

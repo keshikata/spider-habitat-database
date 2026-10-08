@@ -7,6 +7,8 @@
 | JAXA HRLULC 2024JPN_v25.04 | [配布元](https://www.eorc.jaxa.jp/ALOS/jp/dataset/lulc_j.htm)と[研究データ利用条件](https://earth.jaxa.jp/ja/data/policy/)を確認。無償の利用・改変・第三者配布が可能で、提供元・データ名の表示が必要。商用目的の事前連絡と、成果公表時の任意連絡を区別する。 |
 | 国土数値情報 行政区域2025年版 | [当該版](https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N03-2025.html)のCC BY 4.0、出典・加工表示を確認。参照した環境集計では画素の所属県を決めるために使用。行政境界の図形や元GISは配信しない。測量成果の一般配信手続はCC BYだけから不要と断定しない。 |
 | 国土数値情報 海岸線2006年（C23） | [配布元](https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-C23.html)の39都道府県分を2026-10-08取得し、海岸線からの距離を計算。[旧国土情報利用約款](https://nlftp.mlit.go.jp/ksj/other/agreement_02.html)・非商用、原線の複製物再配布は除外。原線と加工集計はローカル研究用に保管し、公開コードには含めない。2006年以降の海岸変化は反映しない。 |
+| 国土数値情報 河川 W05 2006～2009年 | [公式データ説明](https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-W05.html)の非商用表示と[旧利用約款](https://nlftp.mlit.go.jp/ksj/other/agreement_02.html)を確認。GHFに保管された47 ZIPを読み取り、湖沼兼用・不明を除く区間1～4を使用。原線・派生集計ともローカルのみ。距離の近似と原図の古さを画面・出力へ継承する。 |
+| 環境省 現存植生図2024 | [配布一覧](https://www.biodic.go.jp/ikimonomap.html)に対応する8地域ブロックの公式項目すべてでCC BY 4.0を2026-10-08確認。出典・ライセンス・日髙涼太による加工を表示。GHFの地域別GeoPackageから果樹園・植林・牧草地・ハイマツ群落・低木群落の凡例を抽出。原図と土地被覆の縮尺・調査時点が異なる。入力・出力のSHA256、公式項目のURLとライセンス本文をローカルの参照データ来歴へ保存。 |
 | 国土地理院DEM | [手続案内](https://www.gsi.go.jp/LAW/2930-index.html)と[利用例](https://www.gsi.go.jp/LAW/2930-sample.html)を確認。非商用・趣味研究だけを理由に公開地図の手続が不要とは判断できない。公開条件が確認できるまでDEM由来の解析地図を一般配信へ含めない。 |
 | 地理院タイル | [Q1-12](https://www.gsi.go.jp/LAW/2930-qa.html)に従い、閲覧者のブラウザからリアルタイムで表示し、地理院タイル一覧へのリンクと必要な個別出典を記す。保存したタイルの再配布は行わない。 |
 | Japan Spider Catalog | 所有者が指定した分類参照元。学名・和名・科・属・種IDを選別して使う。写真や人物情報、内部ノートを分類情報に混ぜない。公開サイトのTaxonName.json・DistributionRecord_web.records.json・UpdateHistory.jsonを2026-10-08に取得。配信履歴ver.2.0.7（2026-09-25）。参照日と入力ハッシュを記録し、分類・県別集計と本土部／島名／不明の記録区分のみを再配信する。 |
@@ -23,8 +25,10 @@
 
 分類・県別記録の引用：Japan Spider Catalog. (2026). Japan Spider Catalog, ver. 2.0.7. https://japan-spider-catalog.pages.dev/ (accessed 2026-10-08).
 
-標高は内部の研究計算を実施し、距離条件とともに[ローカル試作](spatial-model.md)へ反映した。内部利用と、DEM由来の候補地地図・GISを一般配信する手続は分けて確認する。原DEMを配布しないことだけで、派生地図の公開手続が不要とは断定しない。新しい解析データは公開リポジトリにも含めていない。
+標高の内部研究計算は保持するが、現在のサイトでは標高絞り込みを未実装・将来対応として選択不可にしている。[現在の計算](spatial-model.md)を参照。内部利用と、DEM由来の候補地地図・GISを一般配信する手続は分けて確認する。原DEMを配布しないことだけで、派生地図の公開手続が不要とは断定しない。新しい解析データは公開リポジトリにも含めていない。
 
 無料運営では公開前のローカル計算と静的配信を基本とする。[Cloudflare Pagesの無料枠](https://developers.cloudflare.com/pages/platform/limits/)は月500ビルド、20,000ファイル、1ファイル25MiB。[GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages)はGitHub Freeの非公開リポジトリからの公開を対象としないため、非公開ソースと無料ホスティングを分ける。
 
-国土地理院の使用承認申請用に、加工方法・公開形式・DEMの範囲と版日付の一覧を準備し、フォームへ添付した。申請は未送信、承認は未取得。地理院タイルの出典は地図と方法ページに示し、通信の説明欄は出典欄へ案内する。
+国土地理院の使用承認申請用に、加工方法・公開形式・DEMの範囲と版日付の一覧を準備し、フォームへ添付した。申請は入力エラーのため中断し、再開用の控えを保存。未送信・承認未取得。地理院タイルの出典は地図と方法ページに示し、通信の説明欄は閲覧時の外部接続を説明する。
+
+植生図の個別条件は[北海道](https://geoportal.env.go.jp/datasets/ceb726273cc94ccfb4fc9eab9e6d244a_0/about)、[東北](https://geoportal.env.go.jp/datasets/bc367787e89d42ba93b96c1535047ba0_0/about)、[北陸](https://geoportal.env.go.jp/datasets/9a6efc6acf0d4abb8d83fc25a1ae58b8_0/about)、[関東](https://geoportal.env.go.jp/datasets/490a48eaae6d464f8feacc50ad5bf6e5_0/about)、[中部](https://geoportal.env.go.jp/datasets/0d209199d8a2446cb88b805cc21844dc_0/about)、[近畿](https://geoportal.env.go.jp/datasets/10e54c08de264b3b84d79e1083bc4597_0/about)、[中四国](https://geoportal.env.go.jp/datasets/7ec6e383cb294d80888bf08610f4b0f2_0/about)、[九州沖縄](https://geoportal.env.go.jp/datasets/5eaab78b57af4614be9c12b0f32e1b55_0/about)で確認した。CC BY 4.0は出典・ライセンスのリンク・加工した旨を表示する。別データに適用される利用手続が不要になるわけではない。

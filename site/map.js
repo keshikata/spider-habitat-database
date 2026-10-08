@@ -8,7 +8,7 @@ async function readLimited(response, limit) {
   const result=new Uint8Array(size);let offset=0;for(const chunk of chunks){result.set(chunk,offset);offset+=chunk.length;}return result;
 }
 export async function readCompressed(url, {signal, bytes=2000000, decodedBytes=12000000, sha256}={}) {
-  if(!Number.isSafeInteger(bytes)||bytes<1||bytes>16000000||!Number.isSafeInteger(decodedBytes)||decodedBytes<1||decodedBytes>64000000)throw new Error('データサイズの指定が不正です');
+  if(!Number.isSafeInteger(bytes)||bytes<1||bytes>64000000||!Number.isSafeInteger(decodedBytes)||decodedBytes<1||decodedBytes>192000000)throw new Error('データサイズの指定が不正です');
   const packed=await readLimited(await fetch(url,{signal,credentials:'same-origin'}),bytes);
   if(sha256){const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',packed)),v=>v.toString(16).padStart(2,'0')).join('');if(hash!==sha256)throw new Error('地図データの版が一致しません');}
   if(typeof DecompressionStream!=='function')throw new Error('地図の表示には新しいブラウザが必要です');
@@ -68,7 +68,7 @@ export function createHabitatMap(catalog, formatArea, unit){
       await Promise.all([worker(),worker()]);if(own!==version||signal.aborted)return;layer.setCells(results,1);$('map-resolution').textContent='約1kmメッシュ';$('map-status').textContent='';
     }catch(error){if(error.name!=='AbortError'&&own===version){retry();console.error(error);}}
   }
-  async function render(options){latestOptions=options;spatial=options.spatial;settings=options.settings;species=options.species;prefs=options.prefs;const own=++version;controller?.abort();controller=new AbortController();layer.setCells([],1);m.closePopup();if(!species.classes.length||!prefs.length){ready=false;$('map-status').textContent=!species.classes.length?'この種の環境は土地被覆だけでは判定できません。':'選択範囲にこの種の県別記録はありません。';return;}$('map-status').textContent='環境候補を読み込んでいます…';try{await prepare(controller.signal,Boolean(spatial));if(own!==version)return;ready=true;if(options.fit){ready=false;fit();ready=true;}await update();}catch(error){if(error.name!=='AbortError'&&own===version){retry();console.error(error);}}}
+  async function render(options){latestOptions=options;spatial=options.spatial;settings=options.settings;species=options.species;prefs=options.prefs;const own=++version;controller?.abort();controller=new AbortController();layer.setCells([],1);m.closePopup();if(!species.classes.length||!prefs.length){ready=false;$('map-status').textContent=!species.classes.length?'選択した生息環境は、現在のデータでは判定できません。':'選択範囲にこの種の県別記録はありません。';return;}$('map-status').textContent='環境候補を読み込んでいます…';try{await prepare(controller.signal,Boolean(spatial));if(own!==version)return;ready=true;if(options.fit){ready=false;fit();ready=true;}await update();}catch(error){if(error.name!=='AbortError'&&own===version){retry();console.error(error);}}}
   m.on('moveend',update);
   return {render,fit,bounds(){const b=m.getBounds();return {west:b.getWest(),east:b.getEast(),south:b.getSouth(),north:b.getNorth()};},resize(){m.invalidateSize();layer.redraw();},closePopup(){m.closePopup();},suspend(){ready=false;version++;controller?.abort();},setBasemap(value){value==='pale'?tile.addTo(m):m.removeLayer(tile);}};
 }

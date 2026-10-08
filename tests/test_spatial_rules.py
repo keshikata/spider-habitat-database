@@ -5,6 +5,19 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from spatial_rules import spatial_rule, accepts
 
 class SpatialRuleTest(unittest.TestCase):
+    def test_riverbed_is_explicit_grass_proxy_not_generic_water(self):
+        r=spatial_rule('河川敷')
+        self.assertTrue(r['supported']);self.assertTrue(r['river']);self.assertTrue(r['proxy'])
+        self.assertEqual(r['classes'],[5]);self.assertFalse(r['water'])
+        self.assertTrue(accepts(5*64+3*4+65536,[r],distance=1))
+        self.assertFalse(accepts(5*64+3*65536,[r],distance=2))
+        self.assertFalse(spatial_rule('河口')['supported'])
+    def test_vegetation_required_in_every_matching_pixel(self):
+        for label,group,cover in [('植林地',2,6),('牧草地',3,5),('果樹園',1,4),('ハイマツ帯',4,5),('薮',5,5)]:
+            r=spatial_rule(label)
+            self.assertTrue(r['supported'],label)
+            self.assertFalse(accepts(cover*64,[r]))
+            self.assertTrue(accepts(cover*64+group*262144,[r]))
     def test_coastal_grass_is_distinct_from_inland_water(self):
         r=spatial_rule('海岸の草地')
         self.assertEqual(r['classes'],[5]);self.assertTrue(r['coast']);self.assertFalse(r['water'])
@@ -24,7 +37,7 @@ class SpatialRuleTest(unittest.TestCase):
         r=spatial_rule('海岸～低山地の森林')
         self.assertFalse(r['coast']);self.assertEqual(r['elevation'],[0,1])
     def test_unavailable_modifiers_exclude_the_entire_habitat(self):
-        for label in ['海岸の岩場','海岸(潮間帯)','植林地','里山の森林','市街地の良い林','山地の渓流','平地～山地の湖沼','港湾周辺']:
+        for label in ['海岸の岩場','海岸(潮間帯)','里山の森林','市街地の良い林','山地の渓流','平地～山地の湖沼','港湾周辺']:
             r=spatial_rule(label)
             self.assertFalse(r['supported'],label);self.assertEqual(r['classes'],[],label);self.assertTrue(r['pending'],label)
     def test_water_grass_is_land_with_distance(self):

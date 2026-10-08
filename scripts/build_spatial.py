@@ -44,7 +44,8 @@ def task(job):
     region, tx, ty, mesh_rows, source_root, output, stamp = job[:7]
     coast_lines = job[7] if len(job) > 7 else None
     compound = len(job) > 8 and job[8]
-    strata = 65536 if compound else 4096 if coast_lines is not None else 1024
+    references = job[9] if len(job) > 9 else None
+    strata = 1572864 if references else 65536 if compound else 4096 if coast_lines is not None else 1024
     tile_id = f'{region}-{tx}-{ty}'
     cache = Path(output)/'cache'/f'{tile_id}.json'
     if cache.exists():
@@ -90,6 +91,19 @@ def task(job):
             fb,rb=landscape_distance_bins(cover,sampling)
             fb=fb[halo:-halo,halo:-halo];rb=rb[halo:-halo,halo:-halo]
             keys+=fb.astype(np.int32)*4096+rb.astype(np.int32)*16384
+        if references:
+            import geopandas as gpd
+            from rasterio.features import rasterize
+            from rasterio.windows import bounds, transform
+            bounds_box=bounds(win,lc.transform)
+            rivers=gpd.read_file(Path(references['root'])/'rivers.fgb',bbox=bounds_box)
+            river_mask=rasterize([(g,1) for g in rivers.geometry],out_shape=cover.shape,transform=transform(win,lc.transform),fill=0,dtype='uint8',all_touched=True) if len(rivers) else np.zeros(cover.shape,dtype='uint8')
+            river_bins=distance_bins(river_mask,1,sampling)[halo:-halo,halo:-halo]
+            vegetation=gpd.read_file(Path(references['root'])/(region+'-vegetation.fgb'),bbox=bounds_box)
+            # Sorted category precedence makes any source polygon overlap deterministic.
+            vegetation=vegetation.sort_values(['group','legend_nm'],kind='stable')
+            veg=rasterize(zip(vegetation.geometry,vegetation['group']),out_shape=cover.shape,transform=transform(win,lc.transform),fill=0,dtype='uint8') if len(vegetation) else np.zeros(cover.shape,dtype='uint8')
+            keys+=river_bins.astype(np.int32)*65536+veg[halo:-halo,halo:-halo].astype(np.int32)*262144
         with rasterio.open(paths/'admin_code.tif') as admin:
             if admin.transform!=lc.transform or admin.shape!=lc.shape: raise ValueError('Admin alignment differs')
             admin_prefs=admin.read(1,window=Window(c0,r0,c1-c0,r1-r0),boundless=True,fill_value=0)//1000
@@ -106,24 +120,34 @@ def task(job):
         pref_grid[my-y0,mx-x0]=p; expected+=np.asarray(counts,dtype=np.int64)
     prefs=pref_grid[local_y[:,None]//4,local_x[None,:]//4]
     # Match the original administrative mask, including genuine class-0 missing pixels.
-    keep=(prefs>0) & (admin_prefs==prefs)
-    actual=np.bincount(core[keep],minlength=16)
+    original_keep=(prefs>0) & (admin_prefs==prefs)
+    actual=np.bincount(core[original_keep],minlength=16)
     if not np.array_equal(actual,expected):
         raise ValueError(f'Original pixel parity failed {tile_id}: {actual.tolist()} != {expected.tolist()}')
-    joint,counts=np.unique(cell[keep]*strata+keys[keep],return_counts=True)
-    offsets=np.searchsorted(joint,np.arange((STEP*4)**2+1,dtype=np.int64)*strata)
+    if references:
+        # Each native pixel belongs to exactly one prefecture. Boundary quarter
+        # meshes may have several rows, one per prefecture, without losing land.
+        keep=np.isin(admin_prefs,references['prefs']);prefs=admin_prefs
+        cell=cell.astype(np.int64)*48+prefs
+        slots=(STEP*4)**2*48
+    else:keep=original_keep;slots=(STEP*4)**2
+    joint,counts=np.unique(cell[keep].astype(np.int64)*strata+keys[keep],return_counts=True)
+    offsets=np.searchsorted(joint,np.arange(slots+1,dtype=np.int64)*strata)
     cells=[]; summary={}; coarse={}; bounds={}; meshes=collections.Counter()
     for local in np.flatnonzero(np.diff(offsets)):
-        cy,cx=divmod(int(local),STEP*4); p=int(pref_grid[cy//4,cx//4])
+        if references:local_cell,p=divmod(int(local),48)
+        else:local_cell=int(local);p=None
+        cy,cx=divmod(local_cell,STEP*4)
+        if p is None:p=int(pref_grid[cy//4,cx//4])
         start,end=offsets[local:local+2];codes=joint[start:end]%strata;values=counts[start:end]
         flat=np.column_stack([codes,values]).ravel().tolist()
         gx,gy=x0*4+cx,y0*4+cy
         cells.append([gx,gy,p,flat]); meshes[str(p)]+=1
         ar=pixel_area_km2((gy+.5)/480)
-        dest=summary.setdefault(str(p),np.zeros(strata)); dest[codes]+=values*ar
-        co=coarse.setdefault(str(p),np.zeros(strata,dtype=np.int64)); co[codes]+=values
+        if str(p) not in summary:summary[str(p)]=np.zeros(strata);coarse[str(p)]=np.zeros(strata,dtype=np.int64)
+        summary[str(p)][codes]+=values*ar;coarse[str(p)][codes]+=values
         b=bounds.setdefault(str(p),[gx,gy,gx+1,gy+1]); b[:]=[min(b[0],gx),min(b[1],gy),max(b[2],gx+1),max(b[3],gy+1)]
-    raw=json.dumps({'schema':4 if compound else 3 if coast_lines is not None else 2,'step':1,'cells':cells},separators=(',',':')).encode()
+    raw=json.dumps({'schema':5 if references else 4 if compound else 3 if coast_lines is not None else 2,'step':1,'cells':cells},separators=(',',':')).encode()
     packed=gzip.compress(raw,compresslevel=6,mtime=0); digest=hashlib.sha256(packed).hexdigest()
     if len(packed)>2000000 or len(raw)>12000000: raise ValueError('Tile budget exceeded')
     name=tile_id+'-'+digest[:12]+'.json.gz'; (Path(output)/name).write_bytes(packed)

@@ -14,7 +14,7 @@ from build_data import ROOT, pixel_area_km2
 
 def build(args):
     manifest=json.loads((args.out/'manifest.json').read_text(encoding='utf-8'))
-    strata=65536 if manifest['schema']==4 else 4096 if manifest['schema']==3 else 1024
+    strata=1572864 if manifest['schema']==5 else 65536 if manifest['schema']==4 else 4096 if manifest['schema']==3 else 1024
     catalog=json.loads((ROOT/'site/data/catalog.json').read_text(encoding='utf-8'))
     frame=gpd.read_file(args.boundaries).to_crs(4326)
     polygons=[];prefs=[];by_pref=collections.defaultdict(list)
@@ -25,18 +25,28 @@ def build(args):
             by_pref[pref].append(len(polygons));polygons.append(part);prefs.append(pref)
     tree=STRtree(polygons)
     polygons_array=np.array(polygons,dtype=object);prepare(polygons_array)
-    source=json.loads(args.islands.read_text(encoding='utf-8'))
-    island_rows=[{k:source['dictionaries'][k][v] if isinstance(v,int) else v for k,v in zip(source['columns'],r)} for r in source['rows']]
+    previous=json.loads(gzip.decompress(args.previous.read_bytes())) if args.previous else None
+    if previous:island_rows=[]
+    else:
+        source=json.loads(args.islands.read_text(encoding='utf-8'))
+        island_rows=[{k:source['dictionaries'][k][v] if isinstance(v,int) else v for k,v in zip(source['columns'],r)} for r in source['rows']]
     used=set(i for s in catalog['species'] for a in s.get('recordAreas',{}).values() for i in a['islands'])
     region_for_polygon={};regions={};island_ids={};mainland={};unresolved=[]
     def register(index,name):
         rid=str(index+1)
-        if rid not in regions:regions[rid]={'pref':prefs[index],'names':[],'bounds':list(polygons[index].bounds),'areas':np.zeros(strata),'meshes':0}
+        if rid not in regions:regions[rid]={'pref':prefs[index],'names':[],'bounds':list(polygons[index].bounds),'areas':collections.Counter(),'meshes':0}
         if name not in regions[rid]['names']:regions[rid]['names'].append(name)
         region_for_polygon[index]=int(rid)
         return rid
     for pref,indices in by_pref.items():
         if pref!=47:mainland[str(pref)]=register(max(indices,key=lambda i:polygons[i].area),'本土')
+    if previous:
+        assert mainland==previous['mainland'],'The source land-component ordering changed'
+        for rid,r in previous['regions'].items():
+            index=int(rid)-1
+            assert prefs[index]==r['pref'] and np.allclose(polygons[index].bounds,r['bounds'],atol=1e-9,rtol=0)
+            for name in r['names']:register(index,name)
+        island_ids=previous['islands']
     for row in island_rows:
         name=row['Island_jp']
         if name not in used:continue
@@ -62,7 +72,7 @@ def build(args):
             if prefs[poly]==rows[cell][2]:assigned[cell]=region_for_polygon.get(int(poly),0)
         # Coast cells whose centres are offshore are attributed only when the
         # quarter mesh intersects exactly one named/mainland land component.
-        no_centre=set(range(len(rows)))-set(map(int,hits[0]))
+        no_centre=np.flatnonzero(assigned==0)
         for j in no_centre:
             x,y,p,_=rows[j];square=box(100+x/320,y/480,100+(x+1)/320,(y+1)/480)
             choices={int(k) for k in tree.query(square,predicate='intersects') if prefs[k]==p}
@@ -78,7 +88,7 @@ def build(args):
             for k,n in zip(flat[::2],flat[1::2]):region['areas'][k]+=n*pixel_area;coarse[(x//64*64,y//64*64,p,int(rid))][k]+=n
         all_runs[tile['id']]=runs
         if (i+1)%100==0 or i+1==len(manifest['tiles']):print(json.dumps({'tiles':i+1,'total':len(manifest['tiles'])}),flush=True)
-    for r in regions.values():r['areas']=({str(int(k)):float(r['areas'][k]) for k in np.flatnonzero(r['areas'])} if manifest['schema']==4 else r['areas'].tolist())
+    for r in regions.values():r['areas']=({str(int(k)):float(a) for k,a in r['areas'].items() if a} if manifest['schema']>=4 else [r['areas'][k] for k in range(strata)])
     overview=[[x,y,p,[n for k,v in sorted(counts.items()) for n in (k,v)],rid] for (x,y,p,rid),counts in coarse.items()]
     value={'schema':1,'source':'国土数値情報 行政区域2025（CC BY 4.0） / Japan Spider Catalog 島嶼代表点',
            'method':'250m mesh land-component assignment; offshore centres use a single intersecting component; ambiguous boundary meshes excluded',
@@ -92,4 +102,4 @@ def build(args):
     print(json.dumps({'complete':True,'decodedBytes':len(encoded),'bytes':(args.out/'geography.json.gz').stat().st_size,'regions':len(regions),'coastal':coastal,'ambiguous':ambiguous}),flush=True)
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('--boundaries',required=True);p.add_argument('--islands',type=Path,required=True);p.add_argument('--out',type=Path,default=ROOT/'local/spatial');build(p.parse_args())
+    p=argparse.ArgumentParser();p.add_argument('--boundaries',required=True);source=p.add_mutually_exclusive_group(required=True);source.add_argument('--islands',type=Path);source.add_argument('--previous',type=Path);p.add_argument('--out',type=Path,default=ROOT/'local/spatial');build(p.parse_args())

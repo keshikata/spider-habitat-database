@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {attachRegions,recordScope,includesRecordRow} from '../site/record-geography.js';
 import {STRATA} from '../site/spatial-model.js';
 import {pixelArea} from '../site/model.js';
-const root=new URL('../local/spatial-compound/',import.meta.url);
+const root=new URL('../local/spatial-reference/',import.meta.url);
 const read=name=>fs.readFileSync(new URL(name,root));
 const hash=raw=>createHash('sha256').update(raw).digest('hex');
 const info=JSON.parse(read('geography-manifest.json')),raw=read('geography.json.gz'),g=JSON.parse(gunzipSync(raw));
@@ -19,16 +19,16 @@ for(const tile of manifest.tiles){
   assert.equal(rows.length,tile.cells);totalRows+=rows.length;
   for(const [x,y,p,flat,id] of rows){
     if(!id)continue;assigned++;assert.equal(g.regions[id].pref,p);
-    const sum=sums[id]??=Array(STRATA).fill(0);counts[id]=(counts[id]||0)+1;
+    const sum=sums[id]??=new Map();counts[id]=(counts[id]||0)+1;
     const key=[Math.floor(x/64)*64,Math.floor(y/64)*64,p,id].join(','),coarse=overview.get(key)||new Map();
     const area=pixelArea((y+.5)/480);
-    for(let k=0;k<flat.length;k+=2){sum[flat[k]]+=flat[k+1]*area;coarse.set(flat[k],(coarse.get(flat[k])||0)+flat[k+1]);}
+    for(let k=0;k<flat.length;k+=2){sum.set(flat[k],(sum.get(flat[k])||0)+flat[k+1]*area);coarse.set(flat[k],(coarse.get(flat[k])||0)+flat[k+1]);}
     overview.set(key,coarse);
   }
 }
 for(const [id,region] of Object.entries(g.regions)){
   assert.equal(region.meshes,counts[id]||0);
-  for(let k=0;k<STRATA;k++)assert.ok(Math.abs((region.areas[k]||0)-(sums[id]?.[k]||0))<1e-6);
+  for(const k of new Set([...Object.keys(region.areas).map(Number),...(sums[id]?.keys()||[])]))assert.ok(Math.abs((region.areas[k]||0)-(sums[id]?.get(k)||0))<1e-6);
 }
 for(const [x,y,p,flat,id] of g.overview){
   const key=[x,y,p,id].join(','),expected=overview.get(key);
@@ -40,4 +40,9 @@ const amami=catalog.species.find(s=>s.id==='1'),scope=recordScope(g,amami,[46],'
 assert.equal(scope.fullPrefs.size,0);assert.equal(scope.regionIds.size,1);
 assert.equal([...scope.regionIds][0],g.islands['奄美大島']);
 assert.equal(includesRecordRow(scope,[0,0,46,[],Number(g.mainland[46])]),false);
-console.log(JSON.stringify({totalRows,assigned,regions:Object.keys(g.regions).length,unresolved:g.unresolved,summaryAndMapParity:'passed',amamiIslandOnly:'passed'}));
+// Independent native-admin spot check: a single quarter mesh spans Gunma/Saitama.
+const borderTile=manifest.tiles.find(t=>t.id==='kanto-193-269');
+const borderRows=attachRegions(JSON.parse(gunzipSync(read(borderTile.file))).cells,g.tiles[borderTile.id]).filter(r=>r[0]===12388&&r[1]===17273);
+assert.deepEqual(borderRows.map(r=>[r[2],r[3].filter((_,i)=>i%2).reduce((a,b)=>a+b,0)]).sort((a,b)=>a[0]-b[0]),[[10,457],[11,468]]);
+for(const row of borderRows)assert.equal(String(row[4]),g.mainland[row[2]],'a neighbouring prefecture centre must not discard mainland pixels');
+console.log(JSON.stringify({totalRows,assigned,regions:Object.keys(g.regions).length,unresolved:g.unresolved,summaryAndMapParity:'passed',amamiIslandOnly:'passed',prefectureBoundary:'457 + 468 native pixels retained'}));

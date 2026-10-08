@@ -4,6 +4,20 @@ import {acceptedKeys,evaluateStrata,geoFeature,summarizeSpatial,habitatMetadata}
 const key=(c,h,w,b)=>c*64+h*16+w*4+b;
 const s={id:'1',name:'テスト種',scientific:'Test species',classes:[5,6],records:{1:1}};
 
+test('river and vegetation predicates are independent, and their union counts a pixel once',()=>{
+  const grass=key(5,0,3,3),nearRiver=grass+65536,farRiver=grass+3*65536;
+  const pasture=farRiver+3*262144,both=nearRiver+3*262144;
+  const rules=[{id:'river',classes:[5],river:true,elevation:[0,1,2,3]}, {id:'pasture',classes:[5],vegetation:3,elevation:[0,1,2,3]}];
+  const settings={model:'distance',distance:250};
+  const mask=acceptedKeys(s,rules,settings);
+  assert.equal(mask[farRiver],0);assert.equal(mask[pasture],1);assert.equal(mask[nearRiver],1);
+  assert.equal(evaluateStrata([nearRiver,3,pasture,5,both,7,farRiver,11],mask).matching,15);
+  assert.equal(acceptedKeys(s,[rules[0]],{...settings,distance:100})[nearRiver],0);
+  assert.equal(acceptedKeys(s,[rules[1]],settings)[nearRiver+2*262144],0);
+  assert.equal(habitatMetadata(s,rules,settings)[0].river_distance_m,250);
+  assert.equal(habitatMetadata(s,rules,settings)[1].vegetation_group,3);
+});
+
 test('forest-edge and paddy predicates survive sparse summaries and habitat unions',()=>{
   const edge={id:'E',label:'林縁の草地',classes:[5],edge:true,elevation:[0,1,2,3]};
   const rice={id:'R',label:'水田の周囲',classes:[5],rice:true,elevation:[0,1,2,3]};
@@ -41,7 +55,7 @@ test('coastal grass requires coastline proximity and excludes inland waterside g
 test('GIS export records only selected habitats and the conditions actually applied',()=>{
   const rules=[{id:'H001',label:'水辺の草地',classes:[5],baseClasses:[5],water:true,built:false,elevation:[0]}, {id:'H002',label:'公園',classes:[5,6],baseClasses:[],water:false,built:true,elevation:[0,1,2,3]}];
   const settings={model:'distance',distance:250,scope:'environment',habitats:{1:['H001']}};
-  assert.deepEqual(habitatMetadata(s,rules,settings),[{id:'H001',label:'水辺の草地',classes:[5],water_distance_m:250,coast_distance_m:null,built_distance_m:null,forest_edge_distance_m:null,paddy_distance_m:null,elevation_bands:null,evaluation:'calculated',unresolved:[],limitations:[]}]);
+  assert.deepEqual(habitatMetadata(s,rules,settings),[{id:'H001',label:'水辺の草地',classes:[5],water_distance_m:250,coast_distance_m:null,built_distance_m:null,forest_edge_distance_m:null,paddy_distance_m:null,river_distance_m:null,vegetation_group:null,elevation_bands:null,evaluation:'calculated',unresolved:[],limitations:[]}]);
   assert.equal(habitatMetadata(s,rules,{...settings,model:'cover'})[0].water_distance_m,null);
   assert.deepEqual(habitatMetadata(s,rules,{...settings,model:'elevation'})[0].elevation_bands,[0]);
   assert.deepEqual(habitatMetadata(s,rules,{...settings,habitats:{1:[]}}),[]);

@@ -55,7 +55,7 @@ test('coastal grass requires coastline proximity and excludes inland waterside g
 test('GIS export records only selected habitats and the conditions actually applied',()=>{
   const rules=[{id:'H001',label:'水辺の草地',classes:[5],baseClasses:[5],water:true,built:false,elevation:[0]}, {id:'H002',label:'公園',classes:[5,6],baseClasses:[],water:false,built:true,elevation:[0,1,2,3]}];
   const settings={model:'distance',distance:250,scope:'environment',habitats:{1:['H001']}};
-  assert.deepEqual(habitatMetadata(s,rules,settings),[{id:'H001',label:'水辺の草地',classes:[5],water_distance_m:250,coast_distance_m:null,built_distance_m:null,forest_edge_distance_m:null,paddy_distance_m:null,river_distance_m:null,vegetation_group:null,elevation_bands:null,evaluation:'calculated',unresolved:[],limitations:[]}]);
+  assert.deepEqual(habitatMetadata(s,rules,settings),[{id:'H001',label:'水辺の草地',classes:[5],excluded_landcover_classes:[],water_distance_m:250,coast_distance_m:null,built_distance_m:null,forest_edge_distance_m:null,paddy_distance_m:null,river_distance_m:null,vegetation_group:null,elevation_bands:null,evaluation:'calculated',unresolved:[],limitations:[]}]);
   assert.equal(habitatMetadata(s,rules,{...settings,model:'cover'})[0].water_distance_m,null);
   assert.deepEqual(habitatMetadata(s,rules,{...settings,model:'elevation'})[0].elevation_bands,[0]);
   assert.deepEqual(habitatMetadata(s,rules,{...settings,habitats:{1:[]}}),[]);

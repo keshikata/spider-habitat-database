@@ -1,4 +1,9 @@
 export const MODEL='landcover-rules-1.0.0';
+export function excludedClasses(value=[]){
+  const values=typeof value==='string'?value.split('.'):Array.isArray(value)?value:[];
+  return [...new Set(values.filter(v=>typeof v==='number'||typeof v==='string'&&/^(?:[1-9]|1[0-5])$/.test(v)).map(Number).filter(v=>Number.isInteger(v)&&v>=1&&v<=15))].sort((a,b)=>a-b);
+}
+export function includedClasses(classes,settings={}){const excluded=new Set(excludedClasses(settings.excludedClasses));return [...new Set(classes)].filter(c=>!excluded.has(c));}
 export const REGION_NAMES={all:'全国',hokkaido:'北海道',tohoku:'東北',kanto:'関東',chubu:'中部',kinki:'近畿',chugoku:'中国',shikoku:'四国',kyushu:'九州',okinawa:'沖縄'};
 export function prefecturesFor(catalog,region,pref,scope,species){
   let ids=region==='all'?catalog.prefectures.map((_,i)=>i+1):catalog.regions[region];
@@ -7,15 +12,15 @@ export function prefecturesFor(catalog,region,pref,scope,species){
   if(scope==='recorded')ids=ids.filter(id=>Number(species.records[id])>0);
   return ids;
 }
-export function summarize(catalog,species,{region='all',pref='',scope='recorded'}={}){
+export function summarize(catalog,species,{region='all',pref='',scope='recorded',excludedClasses:excluded=[]}={}){
   const ids=prefecturesFor(catalog,region,pref,scope,species);
-  const categories=[...new Set(species.classes)];
+  const categories=includedClasses(species.classes,{excludedClasses:excluded});
   if(categories.some(c=>!Number.isInteger(c)||c<1||c>15))throw new Error('Invalid cover category');
   const areas=Array(16).fill(0);
   let meshes=0;
   for(const id of ids){const row=catalog.summary[id];for(let c=0;c<16;c++)areas[c]+=row.areas[c];meshes+=row.meshes;}
   return {area:categories.length&&ids.length?categories.reduce((n,c)=>n+areas[c],0):null,
-    status:!categories.length?'unmapped':!ids.length?'no_scope':'evaluated',
+    status:!categories.length?(species.classes.length||species.availableClassCount?'no_landcover':'unmapped'):!ids.length?'no_scope':'evaluated',
     total:areas.reduce((a,b)=>a+b,0),missing:areas[0],areas,meshes,prefs:ids,
     records:ids.reduce((n,id)=>n+(Number(species.records[id])||0),0)};
 }

@@ -35,5 +35,8 @@ test('lazy delivery preserves prefecture splits, island scope and GeoJSON withou
   const detail=await spatial.mapCells({...options,zoom:12});assert.equal(detail.cells[0].matching,8);assert.equal(detail.step,.25);
   const island=await spatial.mapCells({...options,prefs:[1],zoom:5,settings:{...options.settings,scope:'recorded'}});assert.equal(island.cells[0].matching,3);assert.ok(requests.some(x=>/map-region-1-/.test(x)));assert.ok(!requests.some(x=>/map-pref-3-/.test(x)));
   const geo=await spatial.exportGeoJSON({...options,catalog:{prefectures:['A','B']},onProgress:()=>{}});assert.equal(geo.features.length,2);assert.deepEqual(geo.features.map(f=>f.properties.prefecture),['A','B']);
+  const off={...options,settings:{...options.settings,excludedClasses:[5]}};
+  assert.equal((await spatial.mapCells({...off,zoom:12})).cells[0].matching,0);
+  const filteredGeo=await spatial.exportGeoJSON({...off,catalog:{prefectures:['A','B']},onProgress:()=>{}});assert.equal(filteredGeo.features.length,0);assert.deepEqual(filteredGeo.metadata.excluded_landcover_classes,[5]);
   const cancelled=new AbortController();cancelled.abort();await assert.rejects(spatial.mapCells({...options,zoom:5,signal:cancelled.signal}),{name:'AbortError'});
 });

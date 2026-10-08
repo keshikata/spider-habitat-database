@@ -1,4 +1,4 @@
-import {MODEL,REGION_NAMES,prefecturesFor,summarize as summarizeBase,meshPosition,pixelArea,matchCell,escapeHTML as esc,csv} from './model.js';
+import {MODEL,REGION_NAMES,prefecturesFor,summarize as summarizeBase,meshPosition,pixelArea,matchCell,escapeHTML as esc,csv,includedClasses,excludedClasses} from './model.js';
 import {readCompressed,createHabitatMap} from './map.js';
 import {loadSpatial} from './spatial.js';
 import {SPATIAL_MODEL,effectiveSpecies,summarizeSpatial,selectedRules} from './spatial-model.js';
@@ -9,27 +9,27 @@ const $=id=>document.getElementById(id);
 let catalog,selected,view='explore',shown=50,comparison=[],map,mapPromise,toastTimer,compareCandidate,spatial,geoController;
 const views=['explore','compare','guide','methods','updates','export'];
 const searchIndex=new Map();
-const state={region:'all',pref:'',scope:'recorded',unit:'km2',model:'cover',distance:250,habitats:{}};
+const state={region:'all',pref:'',scope:'recorded',unit:'km2',model:'cover',distance:250,habitats:{},excludedClasses:[]};
 let habitatFilter=null,allHabitats=[],compareGenus='';
 let comparisonLimit=1,slidesStarted=false;
 const number=new Intl.NumberFormat('ja-JP',{maximumFractionDigits:1});
 const int=new Intl.NumberFormat('ja-JP');
-const effective=s=>spatial?effectiveSpecies(spatial.data,s,state):({...s,pending:s.pending.map(v=>v==='標高・気候'?'標高':v).filter(v=>!/気候|気温/.test(v))});
+const effective=(s,settings=state)=>spatial?effectiveSpecies(spatial.data,s,settings):({...s,classes:includedClasses(s.classes,settings),availableClassCount:s.classes.length,pending:s.pending.map(v=>v==='標高・気候'?'標高':v).filter(v=>!/気候|気温/.test(v))});
 const summarize=(c,s,settings=state)=>spatial?summarizeSpatial(c,spatial.data,s,settings):summarizeBase(c,s,settings);
 const conditionLabel=()=>!spatial||state.model==='cover'?'土地被覆のみ':`距離 ${state.distance}m`;
 const fmt=area=>area==null?'判定保留':number.format(area*(state.unit==='ha'?100:1));
-const resultValue=a=>a.status==='no_environment'?'環境未選択':a.status==='no_scope'?'対象県なし':a.status==='no_geography'?'島の範囲未対応':fmt(a.area);
+const resultValue=a=>a.status==='no_environment'?'環境未選択':a.status==='no_landcover'?'土地被覆未選択':a.status==='no_scope'?'対象県なし':a.status==='no_geography'?'島の範囲未対応':fmt(a.area);
 const unit=()=>state.unit==='ha'?'ha':'km²';
 function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,3500);}
 function byId(id){return catalog.species.find(s=>s.id===id);}
-function scopeLabel(){return (state.pref?catalog.prefectures[+state.pref-1]:REGION_NAMES[state.region])+' / '+(state.scope==='recorded'?(spatial?.data.geography?'記録のある本土・島':'種ごとの記録県内'):'全地域の環境のみ')+' / '+conditionLabel();}
-function saveURL(){const p=new URLSearchParams({species:selected.id,region:state.region,scope:state.scope,unit:state.unit,view,model:state.model,distance:String(state.distance)});if(state.pref)p.set('pref',state.pref);if(comparison.length)p.set('compare',comparison.join(','));if(habitatFilter!==null)p.set('habitat',habitatFilter.join('.'));history.replaceState(null,'','?'+p);}
+function scopeLabel(){return (state.pref?catalog.prefectures[+state.pref-1]:REGION_NAMES[state.region])+' / '+(state.scope==='recorded'?(spatial?.data.geography?'記録のある本土・島':'種ごとの記録県内'):'全地域の環境のみ')+' / '+conditionLabel()+(state.excludedClasses.length?' / '+landcoverNote():'');}
+function saveURL(){const p=new URLSearchParams({species:selected.id,region:state.region,scope:state.scope,unit:state.unit,view,model:state.model,distance:String(state.distance)});if(state.pref)p.set('pref',state.pref);if(comparison.length)p.set('compare',comparison.join(','));if(habitatFilter!==null)p.set('habitat',habitatFilter.join('.'));if(state.excludedClasses.length)p.set('excludeCover',state.excludedClasses.join('.'));history.replaceState(null,'','?'+p);}
 function setView(next){
   if(!views.includes(next))return;
   view=next;for(const id of views)$(id).hidden=id!==view;
   for(const button of document.querySelectorAll('.nav-button')){const active=button.dataset.view===view;button.classList.toggle('active',active);if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');}
   document.querySelector('.scope-bar').hidden=['guide','methods','updates'].includes(view);$('analysis-controls').hidden=!spatial||['guide','methods','updates'].includes(view);
-  if(view==='explore'){map?.resize();renderMap(true);}else map?.suspend();if(view==='compare'){renderCompare();renderPicker();}if(view==='export')renderExportScope();if(view==='methods'){renderRuleAudit();initSlides();}saveURL();
+  if(view==='explore'){map?.resize();renderMap(true);}else map?.suspend();if(view==='compare'){renderCompare();renderPicker();}if(view==='export')renderExportScope();if(view==='methods'){renderRuleAudit();initSlides();}renderLandcoverNotice();saveURL();
 }
 function renderPrefs(){
   const ids=state.region==='all'?catalog.prefectures.map((_,i)=>i+1):catalog.regions[state.region];
@@ -45,7 +45,7 @@ function renderSearch(){
   $('species-list').dataset.more=String(found.length>shown);$('species-list').scrollTop=scroll;$('species-list').scrollLeft=left;
   if(focused)$('species-list').querySelector(`[data-species="${focused}"]`)?.focus({preventScroll:true});
 }
-function effectiveSpeciesForSearch(s){return spatial?effectiveSpecies(spatial.data,s,{...state,habitats:{}}):s;}
+function effectiveSpeciesForSearch(s){return spatial?effectiveSpecies(spatial.data,s,{...state,habitats:{},excludedClasses:[]}):s;}
 function ruleDescription(r){
   const classes=state.model==='cover'?(r.baseClasses??r.classes):r.classes;
   const parts=[classes.map(c=>catalog.classes[c]).join('・')||'土地被覆は未対応'];
@@ -104,7 +104,10 @@ function renderSelected(){
   renderRecordAreas(allprefs,s);renderHabitats();renderRuleAudit();
   $('rule-count').innerHTML=`${s.mappedEnvironmentCount}<span>/ ${s.environmentCount} 環境</span>`;
   $('rule-status').textContent=s.environmentCount?'登録環境のうち、現在の条件で計算した数':'生息環境の情報は未収録';
-  $('rule-tags').innerHTML=s.classes.map(c=>`<span class="tag">${esc(catalog.classes[c])}</span>`).join('')||'<span class="tag gray">対応する土地被覆を判定できません</span>';
+  const available=effective(selected,{...state,excludedClasses:[]}).classes;
+  $('rule-tags').innerHTML=available.map(c=>`<button type="button" class="landcover-toggle" data-cover="${c}" aria-pressed="${s.classes.includes(c)}"><span class="cover-mark" aria-hidden="true">${s.classes.includes(c)?'✓':'−'}</span>${esc(catalog.classes[c])}</button>`).join('')||'<span class="tag gray">対応する土地被覆を判定できません</span>';
+  $('landcover-status').textContent=available.length?`${s.classes.length} / ${available.length}種類を使用`:'対象の土地被覆がありません';
+  $('reset-landcover').disabled=!state.excludedClasses.length;renderLandcoverNotice();
   $('pending-note').textContent=s.pending.length?`未評価：${s.pending.join('、')}。`:'';
   $('coverage-note').textContent=`${scopeLabel()}。集計対象 ${int.format(a.meshes)}メッシュ、土地被覆の未分類 ${fmt(a.missing)} ${unit()}。県境をまたぐ区画は所属県ごとに集計しています。`;
   if(a.excludedHabitats?.length)$('coverage-note').textContent+=' 計算対象外の環境：'+a.excludedHabitats.join('、')+'。';
@@ -112,6 +115,15 @@ function renderSelected(){
   if(spatial){if(state.model==='elevation')$('coverage-note').textContent+=` 標高欠損 ${fmt(a.elevationMissing)} ${unit()}。`;}$('distance').disabled=state.model==='cover';updateCompareButton();
 }
 function updateCompareButton(){const included=comparison.includes(selected.id);$('add-compare').textContent=included?'比較から外す':'比較に追加';$('add-compare').setAttribute('aria-pressed',String(included));$('compare-count').textContent=comparison.length;}
+function landcoverNote(){return state.excludedClasses.length?'土地被覆から除外：'+state.excludedClasses.map(c=>catalog.classes[c]).join('・'):'';}
+function renderLandcoverNotice(){
+  $('landcover-adjustment').hidden=!state.excludedClasses.length||['guide','methods','updates'].includes(view);
+  $('landcover-adjustment-text').textContent=landcoverNote()+'。比較・出力にも適用中。';
+}
+function applyLandcoverFilter(excluded,focusClass){
+  state.excludedClasses=excludedClasses(excluded);geoController?.abort();map?.closePopup();renderSelected();renderCompare();renderExportScope();renderMap();saveURL();
+  if(focusClass)$('rule-tags').querySelector(`[data-cover="${focusClass}"]`)?.focus({preventScroll:true});
+}
 function changeSpecies(id){const s=byId(id);if(!s||!searchableSpecies(s))return;selected=s;renderSearch();renderSelected();renderMap(true);renderGenus();saveURL();}
 function toggleComparison(id){
   if(comparison.includes(id))comparison=comparison.filter(x=>x!==id);
@@ -121,17 +133,17 @@ function toggleComparison(id){
 }
 function renderCompare(){
   if(view!=='compare')return;
-  const series=comparison.map(byId).filter(Boolean).map(effective).map(s=>({s,a:summarize(catalog,s,state)})).sort((a,b)=>(b.a.area??-1)-(a.a.area??-1));
+  const series=comparison.map(byId).filter(Boolean).map(s=>effective(s)).map(s=>({s,a:summarize(catalog,s,state)})).sort((a,b)=>(b.a.area??-1)-(a.a.area??-1));
   const max=Math.max(0,...series.map(x=>x.a.area||0));
   $('comparison-chips').innerHTML=series.map(({s})=>`<span class="chip">${esc(s.name)}<button data-remove="${s.id}" aria-label="${esc(s.name)}を比較から外す">×</button></span>`).join('');
   $('comparison-scope').textContent=scopeLabel()+'。'+(state.scope==='recorded'?'対象の本土・島・県は種ごとに異なります。環境条件自体を比べるには「全地域の環境だけで比較」を選んでください。':'すべての種を同じ地域で比較します。既知の分布外も含む環境条件の比較です。');
   $('comparison-chart').innerHTML=series.map(({s,a},i)=>`<div class="bar-row"><div class="bar-name"><strong>${esc(s.name)}</strong><small>${esc(s.scientific)}</small></div><div class="bar-track" role="img" aria-label="${esc(s.name)} ${resultValue(a)}${a.area==null?'':' '+unit()}">${a.area>0?`<div class="bar-fill" style="width:${a.area/max*100}%;background:${['#147d85','#246d9c','#356088','#586da1','#667c9b','#4b898c','#286173','#536b72'][i%8]}"></div>`:''}</div><div class="bar-value">${resultValue(a)}${a.area==null?'':` <small>${unit()}</small>`}</div></div>`).join('')||'<p class="empty">種を追加すると、同じ条件で候補面積を比較できます。</p>';
-  $('comparison-table').innerHTML=series.map(({s,a})=>`<tr><td>${esc(s.name)}<br><em>${esc(s.scientific)}</em></td><td>${resultValue(a)} ${a.area==null?'':unit()}</td><td>${a.prefs.length}</td><td>${spatial?'<p class="note">選択環境：'+esc(selectedRules(s,spatial.data.rules[s.id]||[],state).map(r=>r.label||r.id).join(' / ')||'未選択')+'</p>':''}${s.classes.length?s.classes.map(c=>`<div class="environment-row"><span>${esc(catalog.classes[c])}</span><span>${a.status==='no_scope'?'対象県なし':fmt(a.areas[c])+' '+unit()}</span></div>`).join(''):'判定保留'}</td><td>${esc(s.pending.join('、')||'—')}</td></tr>`).join('');
+  $('comparison-table').innerHTML=series.map(({s,a})=>`<tr><td>${esc(s.name)}<br><em>${esc(s.scientific)}</em></td><td>${resultValue(a)} ${a.area==null?'':unit()}</td><td>${a.prefs.length}</td><td>${spatial?'<p class="note">選択環境：'+esc(selectedRules(s,spatial.data.rules[s.id]||[],state).map(r=>r.label||r.id).join(' / ')||'未選択')+'</p>':''}${s.classes.length?s.classes.map(c=>`<div class="environment-row"><span>${esc(catalog.classes[c])}</span><span>${a.status==='no_scope'?'対象県なし':fmt(a.areas[c])+' '+unit()}</span></div>`).join(''):resultValue(a)}</td><td>${esc(s.pending.join('、')||'—')}</td></tr>`).join('');
   $('export-csv').disabled=!series.length;
 }
 function downloadFile(name,rows){const url=URL.createObjectURL(new Blob([csv(rows)],{type:'text/csv;charset=utf-8;'}));const link=document.createElement('a');link.href=url;link.download=name+'.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-const csvHeader=['選択した生息環境','環境ID','和名','学名','JSC学名','環境','候補面積','面積単位','対象地域','分布条件','対象県数','評価状態','未評価条件','分類取得日','JSC版','土地被覆版','モデル','面積の定義','出典・利用条件','地域区分の注記','計算条件の限界'];
-function exportRow(s,a,environment,area,region){return [spatial?selectedRules(s,spatial.data.rules[s.id]||[],state).map(r=>r.label||r.id).join(' / '):'すべて',spatial?selectedRules(s,spatial.data.rules[s.id]||[],state).map(r=>r.id).join(' / '):'',s.name,s.scientific,s.catalogScientific,environment,area==null?resultValue(a):(area*(state.unit==='ha'?100:1)).toFixed(3),unit(),region,state.scope==='recorded'?(spatial?.data.geography?'記録のある本土・島に限定':'記録県に限定'):'環境のみ',a.prefs.length,a.status,s.pending.join(' / '),catalog.date,catalog.jsc.version,catalog.landcover,spatial?SPATIAL_MODEL:MODEL,'収録範囲の該当画素。'+conditionLabel()+'。土地被覆の欠損等を除く。',(state.model==='elevation'?'国土地理院 基盤地図情報DEM10m（ローカル試作・公開条件未確認） / ':'')+'JAXA HRLULC（JAXA利用条件） / 国土数値情報 行政区域2025（CC BY 4.0）・海岸線2006・河川2006～2009（非商用、日髙涼太が加工） / 環境省 現存植生図2024（CC BY 4.0、日髙涼太が加工） / Japan Spider Catalog / 小野展嗣・緒方清人（2018）日本産クモ類生態図鑑 / WSC分類対応情報（CC BY-NC-SA 4.0）',a.geography?geographicNote(spatial?.data.geography,a.geography):'県全域',spatial?selectedRules(s,spatial.data.rules[s.id]||[],state).map(r=>r.label+'：'+(r.supported===false?'未評価・'+r.pending.join('、'):r.limitations.join('、'))).join(' / '):''];}
+const csvHeader=['選択した生息環境','環境ID','和名','学名','JSC学名','環境','候補面積','面積単位','対象地域','分布条件','対象県数','評価状態','未評価条件','分類取得日','JSC版','土地被覆版','モデル','面積の定義','出典・利用条件','地域区分の注記','計算条件の限界','使用した土地被覆','除外した土地被覆'];
+function exportRow(s,a,environment,area,region){return [spatial?selectedRules(s,spatial.data.rules[s.id]||[],state).map(r=>r.label||r.id).join(' / '):'すべて',spatial?selectedRules(s,spatial.data.rules[s.id]||[],state).map(r=>r.id).join(' / '):'',s.name,s.scientific,s.catalogScientific,environment,area==null?resultValue(a):(area*(state.unit==='ha'?100:1)).toFixed(3),unit(),region,state.scope==='recorded'?(spatial?.data.geography?'記録のある本土・島に限定':'記録県に限定'):'環境のみ',a.prefs.length,a.status,s.pending.join(' / '),catalog.date,catalog.jsc.version,catalog.landcover,spatial?SPATIAL_MODEL:MODEL,'収録範囲の該当画素。'+conditionLabel()+'。土地被覆の欠損等を除く。',(state.model==='elevation'?'国土地理院 基盤地図情報DEM10m（ローカル試作・公開条件未確認） / ':'')+'JAXA HRLULC（JAXA利用条件） / 国土数値情報 行政区域2025（CC BY 4.0）・海岸線2006・河川2006～2009（非商用、本サイトが加工） / 環境省 現存植生図2024（CC BY 4.0、本サイトが加工） / Japan Spider Catalog / 小野展嗣・緒方清人（2018）日本産クモ類生態図鑑 / WSC分類対応情報（CC BY-NC-SA 4.0）',a.geography?geographicNote(spatial?.data.geography,a.geography):'県全域',spatial?selectedRules(s,spatial.data.rules[s.id]||[],state).map(r=>r.label+'：'+(r.supported===false?'未評価・'+r.pending.join('、'):r.limitations.join('、'))).join(' / '):'',s.classes.map(c=>catalog.classes[c]).join(' / '),state.excludedClasses.map(c=>catalog.classes[c]).join(' / ')];}
 function downloadCompare(){const rows=[csvHeader];for(const id of comparison){const s=effective(byId(id)),a=summarize(catalog,s,state);rows.push(exportRow(s,a,'合計',a.area,scopeLabel()));}downloadFile('spider-habitat-comparison-'+catalog.date,rows);}
 function downloadEnvironment(ids){const rows=[csvHeader];for(const id of ids){const s=effective(byId(id)),a=summarize(catalog,s,state);rows.push(exportRow(s,a,'合計',a.area,scopeLabel()));for(const c of s.classes)rows.push(exportRow(s,a,catalog.classes[c],a.area==null?null:a.areas[c],scopeLabel()));}downloadFile('spider-habitat-environments-'+catalog.date,rows);}
 function downloadPrefectures(){const rows=[csvHeader],ids=prefecturesFor(catalog,state.region,state.pref,'environment',selected);for(const p of ids){const a=summarize(catalog,selected,{...state,pref:String(p)});rows.push(exportRow(effective(selected),a,'合計',a.area,catalog.prefectures[p-1]));for(const c of effective(selected).classes)rows.push(exportRow(effective(selected),a,catalog.classes[c],a.area==null?null:a.areas[c],catalog.prefectures[p-1]));}downloadFile('spider-habitat-prefectures-'+catalog.date,rows);}
@@ -166,9 +178,9 @@ async function init(){
     const capacity=comparisonCapacity(catalog.species);comparisonLimit=capacity.count;
     for(const node of document.querySelectorAll('[data-comparison-limit]'))node.textContent=String(comparisonLimit);
     $('comparison-limit').title=`収録データで最大の属 ${capacity.genus}（${capacity.count}種）を基準にしています`;
-    const params=new URLSearchParams(location.search);
+    const params=new URLSearchParams(location.search);state.excludedClasses=excludedClasses(params.get('excludeCover')||'');
     if(['127.0.0.1','localhost'].includes(location.hostname))spatial=await loadSpatial();
-    state.model=spatial?'distance':'cover';state.distance=[100,250,500].includes(Number(params.get('distance')))?Number(params.get('distance')):250;$('analysis-model').value=state.model;$('distance').value=state.distance;state.region=Object.keys(REGION_NAMES).includes(params.get('region'))?params.get('region'):'all';state.pref=/^(?:[1-9]|[1-3][0-9]|4[0-7])$/.test(params.get('pref')||'')?params.get('pref'):'';state.scope=params.get('scope')==='environment'?'environment':'recorded';
+    state.model=spatial?'distance':'cover';state.distance=[100,250,500].includes(Number(params.get('distance')))?Number(params.get('distance')):250;$('distance').value=state.distance;state.region=Object.keys(REGION_NAMES).includes(params.get('region'))?params.get('region'):'all';state.pref=/^(?:[1-9]|[1-3][0-9]|4[0-7])$/.test(params.get('pref')||'')?params.get('pref'):'';state.scope=params.get('scope')==='environment'?'environment':'recorded';
     selected=catalog.species.find(s=>s.id===params.get('species')&&effectiveSpeciesForSearch(s).classes.length)||catalog.species.find(s=>s.name==='ワスレナグモ'&&effectiveSpeciesForSearch(s).classes.length)||catalog.species.find(s=>effectiveSpeciesForSearch(s).classes.length);
     comparison=params.has('compare')?[...new Set(params.get('compare').split(',').filter(id=>byId(id)&&effectiveSpeciesForSearch(byId(id)).classes.length))].slice(0,comparisonLimit):[];
     if(spatial){
@@ -188,13 +200,15 @@ async function init(){
     document.addEventListener('click',event=>{const el=event.target.closest('button');if(!el)return;if(el.dataset.view)setView(el.dataset.view);if(el.dataset.species)changeSpecies(el.dataset.species);if(el.dataset.remove)toggleComparison(el.dataset.remove);if(el.dataset.candidate)chooseCandidate(el.dataset.candidate);});
     const resetSearch=()=>{shown=50;$('species-list').scrollTop=0;$('species-list').scrollLeft=0;renderSearch();};
     $('search').addEventListener('input',resetSearch);
+    $('rule-tags').onclick=e=>{const button=e.target.closest('[data-cover]');if(!button)return;const c=Number(button.dataset.cover),next=new Set(state.excludedClasses);next.has(c)?next.delete(c):next.add(c);applyLandcoverFilter([...next],c);};
+    $('reset-landcover').onclick=()=>applyLandcoverFilter([]);$('reset-common-landcover').onclick=()=>{applyLandcoverFilter([]);document.querySelector('.nav-button.active').focus();};
     $('species-list').addEventListener('scroll',()=>{const el=$('species-list'),horizontal=el.scrollWidth>el.clientWidth+10,near=horizontal?el.scrollLeft+el.clientWidth>el.scrollWidth-200:el.scrollTop+el.clientHeight>el.scrollHeight-200;if(near&&el.dataset.more==='true'){shown+=50;renderSearch();}},{passive:true});
     $('habitat-search').oninput=renderHabitats;
     $('rule-audit-search').oninput=renderRuleAudit;
     $('habitat-options').onchange=event=>{const input=event.target;if(input.type!=='checkbox')return;const next=new Set(habitatFilter||[]);input.checked?next.add(input.value):next.delete(input.value);applyHabitatFilter([...next]);};
     $('habitat-all').onclick=()=>applyHabitatFilter(null);
     $('habitat-current').onclick=()=>applyHabitatFilter(evaluableRules(spatial.data.rules[selected.id]||[],state.model).map(r=>r.id));
-    for(const id of ['region','pref','scope','unit','analysis-model','distance'])$(id).addEventListener('change',()=>{state[id==='analysis-model'?'model':id]=id==='distance'?Number($(id).value):$(id).value;if(id==='region'){state.pref='';renderPrefs();}if(id==='analysis-model'&&!searchableSpecies(selected))selected=catalog.species.find(searchableSpecies)||catalog.species.find(s=>effectiveSpeciesForSearch(s).classes.length);map?.closePopup();renderGenus();renderPicker();renderSearch();renderSelected();renderCompare();renderExportScope();if(id!=='unit')renderMap(['region','pref','scope'].includes(id));saveURL();});
+    for(const id of ['region','pref','scope','unit','distance'])$(id).addEventListener('change',()=>{state[id]=id==='distance'?Number($(id).value):$(id).value;if(id==='region'){state.pref='';renderPrefs();}map?.closePopup();renderGenus();renderPicker();renderSearch();renderSelected();renderCompare();renderExportScope();if(id!=='unit')renderMap(['region','pref','scope'].includes(id));saveURL();});
     $('add-compare').onclick=()=>{const exists=comparison.includes(selected.id);toggleComparison(selected.id);if(!exists&&comparison.includes(selected.id))toast('面積比較に追加しました');};
     $('compare-add-button').onclick=()=>{const id=compareCandidate;if(!id)return;if(comparison.includes(id))toast('この種は比較に入っています');else toggleComparison(id);};
     $('compare-genus-options').onclick=e=>{const button=e.target.closest('[data-genus]');if(button)chooseGenus(button.dataset.genus);};
@@ -207,6 +221,7 @@ async function init(){
     $('compare-search').oninput=renderPicker;$('export-selected').onclick=()=>downloadEnvironment([selected.id]);$('export-comparison').onclick=()=>downloadEnvironment(comparison);$('export-prefectures').onclick=downloadPrefectures;
   }catch(error){$('boot').hidden=false;$('boot').innerHTML='<p>初期データを読み込めませんでした。接続を確認して再読み込みしてください。</p><button id="retry-init" class="primary-button">再読み込み</button>';$('retry-init').onclick=()=>location.reload();console.error(error);}
 }
+
 async function initSlides(){
   if(slidesStarted||!['127.0.0.1','localhost'].includes(location.hostname))return;
   slidesStarted=true;

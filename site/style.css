@@ -64,3 +64,17 @@ input:focus,select:focus{border-color:var(--focus);outline:2px solid var(--focus
 .comparison-chart,.species-list,#habitat-options,.picker-panel,.table-scroll{scrollbar-color:#9eb1c0 #edf2f6;scrollbar-width:thin;overscroll-behavior:contain}
 .methods-view h3{font-size:1rem;line-height:1.7}.methods-view article{scroll-margin-top:24px}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}button:active:not(:disabled){transform:none}}
+
+/* Reflow at narrow widths and high text zoom, without clipping controls. */
+.map-is-expanded{overflow:hidden}
+.map-toolbar{height:auto;min-height:52px;flex-wrap:wrap;padding-block:8px}
+.map-toolbar>div{min-width:0;flex-wrap:wrap}
+.map-wrap{container-type:inline-size}
+.picker-panel{max-height:min(520px,65dvh);overflow-y:auto}
+#habitat-options{max-height:min(330px,38dvh)}
+.sources dd,.methods-view p,.methods-view li,.notice,.chip,.bar-name{overflow-wrap:anywhere}
+.table-scroll:focus-visible,.comparison-chart:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+@container(max-width:420px){.map-toolbar>div{width:100%;justify-content:space-between}.map-actions{grid-template-columns:repeat(2,minmax(0,1fr));max-width:260px}.map-actions button{min-height:44px}.map-toolbar select,.map-toolbar .small-button{height:44px;min-height:44px}.leaflet-control-zoom a{width:40px!important;height:40px!important;line-height:40px!important}}
+@media(max-width:600px){input:not([type="checkbox"]),select,.analysis-controls select,.control select{font-size:1rem}.species-heading{align-items:flex-start;flex-wrap:wrap}.species-heading>div{flex:1 1 220px}.species-heading h2{overflow-wrap:anywhere}.species-heading .secondary-button{min-height:44px}.chip button{min-width:36px;min-height:36px}.metric-primary{display:flex;align-items:flex-start}.metric-primary strong{font-size:1.75rem}.metric{min-width:0}.map-expanded{inset:max(6px,env(safe-area-inset-top)) max(6px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom)) max(6px,env(safe-area-inset-left))}.bar-row{grid-template-columns:minmax(0,1fr) auto}.comparison-chart{max-height:65dvh}.picker-panel input{font-size:1rem}.navigation .nav-button{min-height:44px;white-space:normal}.map-legend{flex-shrink:0}}
+@media(max-width:360px){.scope-bar{grid-template-columns:1fr}.bar-row{grid-template-columns:minmax(0,1fr)}.bar-value{grid-column:1;grid-row:3;text-align:left}.bar-track{grid-row:2}.header{padding-inline:16px}}
+@media(max-width:600px){.species-picker .picker-panel{position:static;width:100%;max-width:100%;margin-top:8px}.habitat-picker .picker-panel{width:100%}}

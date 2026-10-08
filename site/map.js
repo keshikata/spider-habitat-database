@@ -1,19 +1,23 @@
 import {pixelArea, escapeHTML as esc} from './model.js';
 
-async function readLimited(response, limit) {
+async function readLimited(response, limit, signal) {
   if (!response.ok) throw new Error('データを取得できません');
+  signal?.throwIfAborted();
   const reader=response.body.getReader(), chunks=[];let size=0;
+  const abort=()=>{reader.cancel().catch(()=>{});};signal?.addEventListener('abort',abort,{once:true});
   try {while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>limit)throw new Error('データが上限を超えています');chunks.push(value);}}
-  finally {await reader.cancel();}
+  finally {signal?.removeEventListener('abort',abort);await reader.cancel();}
+  signal?.throwIfAborted();
   const result=new Uint8Array(size);let offset=0;for(const chunk of chunks){result.set(chunk,offset);offset+=chunk.length;}return result;
 }
 export async function readCompressed(url, {signal, bytes=2000000, decodedBytes=12000000, sha256}={}) {
   if(!Number.isSafeInteger(bytes)||bytes<1||bytes>64000000||!Number.isSafeInteger(decodedBytes)||decodedBytes<1||decodedBytes>192000000)throw new Error('データサイズの指定が不正です');
-  const packed=await readLimited(await fetch(url,{signal,credentials:'same-origin'}),bytes);
+  const packed=await readLimited(await fetch(url,{signal,credentials:'same-origin'}),bytes,signal);
   if(sha256){const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',packed)),v=>v.toString(16).padStart(2,'0')).join('');if(hash!==sha256)throw new Error('地図データの版が一致しません');}
+  signal?.throwIfAborted();
   if(typeof DecompressionStream!=='function')throw new Error('地図の表示には新しいブラウザが必要です');
   const stream=new Blob([packed]).stream().pipeThrough(new DecompressionStream('gzip'));
-  const raw=await readLimited(new Response(stream),decodedBytes);
+  const raw=await readLimited(new Response(stream),decodedBytes,signal);
   return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(raw));
 }
 const validCell=(x,y,counts)=>Number.isInteger(x)&&x>=1600&&x<=4400&&Number.isInteger(y)&&y>=2400&&y<=6000&&counts.length===16&&counts.every(n=>Number.isSafeInteger(n)&&n>=0&&n<=2000000);
@@ -21,7 +25,7 @@ const bounds=(x,y,step)=>({x,y,west:100+x/80,east:100+(x+step)/80,south:y/120,no
 
 export function createHabitatMap(catalog, formatArea, unit){
   const $=id=>document.getElementById(id),m=L.map('map',{zoomControl:true,preferCanvas:true,minZoom:4,maxZoom:14,zoomAnimation:false}).setView([36.5,137.5],5);
-  const tile=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png',{maxZoom:18,attribution:'<a href="https://maps.gsi.go.jp/development/ichiran.html">地理院タイル</a>'}).addTo(m);
+  const tile=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png',{maxZoom:18,referrerPolicy:'no-referrer',attribution:'<a href="https://maps.gsi.go.jp/development/ichiran.html">地理院タイル</a>'});
   let manifest,overview,prefs=[],species,version=0,controller,ready=false,spatial,settings,latestOptions;
   const cache=new Map();
   const Layer=L.Layer.extend({
@@ -38,9 +42,9 @@ export function createHabitatMap(catalog, formatArea, unit){
     add('全国へ',()=>m.setView([36.5,137.5],5));
     add('候補範囲へ',()=>fit());
     add('候補を隠す',b=>{const hidden=b.getAttribute('aria-pressed')!=='true';layer.canvas.hidden=hidden;m.closePopup();b.setAttribute('aria-pressed',String(hidden));b.textContent=hidden?'候補を表示':'候補を隠す';},false);
-    add('地図を広げる',b=>{const expanded=$('map').closest('.map-wrap').classList.toggle('map-expanded');b.setAttribute('aria-pressed',String(expanded));b.textContent=expanded?'元の大きさ':'地図を広げる';m.invalidateSize();},false);
+    add('地図を広げる',b=>{const wrap=$('map').closest('.map-wrap'),expanded=wrap.classList.toggle('map-expanded');document.body.classList.toggle('map-is-expanded',expanded);if(expanded){wrap.setAttribute('role','dialog');wrap.setAttribute('aria-modal','true');wrap.setAttribute('aria-label','環境候補マップ');}else{for(const attr of ['role','aria-modal','aria-label'])wrap.removeAttribute(attr);}b.setAttribute('aria-pressed',String(expanded));b.textContent=expanded?'元の大きさ':'地図を広げる';m.invalidateSize();},false);
     const close=()=>{if($('map').closest('.map-wrap').classList.contains('map-expanded')){panel.lastElementChild.click();panel.lastElementChild.focus();}};
-    document.addEventListener('keydown',e=>{if(e.key==='Escape')close();});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape')close();if(e.key==='Tab'){const wrap=$('map').closest('.map-wrap');if(!wrap.classList.contains('map-expanded'))return;const items=[...wrap.querySelectorAll('button:not(:disabled),select,a[href],[tabindex="0"]')].filter(el=>el.getClientRects().length);const first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}});
     return panel;
   };controls.addTo(m);
   const retry=()=>{const status=$('map-status');status.replaceChildren(document.createTextNode('地図データを読み込めませんでした。'));const button=document.createElement('button');button.className='small-button';button.textContent='再読込';button.onclick=()=>render(latestOptions);status.append(button);};
@@ -70,5 +74,6 @@ export function createHabitatMap(catalog, formatArea, unit){
   }
   async function render(options){latestOptions=options;spatial=options.spatial;settings=options.settings;species=options.species;prefs=options.prefs;const own=++version;controller?.abort();controller=new AbortController();layer.setCells([],1);m.closePopup();if(!species.classes.length||!prefs.length){ready=false;$('map-status').textContent=!species.classes.length?'選択した生息環境は、現在のデータでは判定できません。':'選択範囲にこの種の県別記録はありません。';return;}$('map-status').textContent='環境候補を読み込んでいます…';try{await prepare(controller.signal,Boolean(spatial));if(own!==version)return;ready=true;if(options.fit){ready=false;fit();ready=true;}await update();}catch(error){if(error.name!=='AbortError'&&own===version){retry();console.error(error);}}}
   m.on('moveend',update);
+  new ResizeObserver(()=>{if($('map').clientWidth&&$('map').clientHeight)m.invalidateSize({pan:false});}).observe($('map'));
   return {render,fit,bounds(){const b=m.getBounds();return {west:b.getWest(),east:b.getEast(),south:b.getSouth(),north:b.getNorth()};},resize(){m.invalidateSize();layer.redraw();},closePopup(){m.closePopup();},suspend(){ready=false;version++;controller?.abort();},setBasemap(value){value==='pale'?tile.addTo(m):m.removeLayer(tile);}};
 }

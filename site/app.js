@@ -11,7 +11,7 @@ const views=['explore','compare','guide','methods','updates','export'];
 const searchIndex=new Map();
 const state={region:'all',pref:'',scope:'recorded',unit:'km2',model:'cover',distance:250,habitats:{}};
 let habitatFilter=null,allHabitats=[],compareGenus='';
-let comparisonLimit=1;
+let comparisonLimit=1,slidesStarted=false;
 const number=new Intl.NumberFormat('ja-JP',{maximumFractionDigits:1});
 const int=new Intl.NumberFormat('ja-JP');
 const effective=s=>spatial?effectiveSpecies(spatial.data,s,state):({...s,pending:s.pending.map(v=>v==='標高・気候'?'標高':v).filter(v=>!/気候|気温/.test(v))});
@@ -29,7 +29,7 @@ function setView(next){
   view=next;for(const id of views)$(id).hidden=id!==view;
   for(const button of document.querySelectorAll('.nav-button')){const active=button.dataset.view===view;button.classList.toggle('active',active);if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');}
   document.querySelector('.scope-bar').hidden=['guide','methods','updates'].includes(view);$('analysis-controls').hidden=!spatial||['guide','methods','updates'].includes(view);
-  if(view==='explore'){map?.resize();renderMap(true);}else map?.suspend();if(view==='compare'){renderCompare();renderPicker();}if(view==='export')renderExportScope();saveURL();
+  if(view==='explore'){map?.resize();renderMap(true);}else map?.suspend();if(view==='compare'){renderCompare();renderPicker();}if(view==='export')renderExportScope();if(view==='methods'){renderRuleAudit();initSlides();}saveURL();
 }
 function renderPrefs(){
   const ids=state.region==='all'?catalog.prefectures.map((_,i)=>i+1):catalog.regions[state.region];
@@ -73,7 +73,7 @@ function renderHabitats(){
   $('selected-habitats').textContent='選択中の生息環境：'+(selectedRules(selected,spatial.data.rules[selected.id]||[],state).map(r=>r.label+(r.supported===false?'（未評価）':'')).join(' ／ ')||'未選択');
 }
 function renderRuleAudit(){
-  if(!spatial)return;
+  if(!spatial||view!=='methods')return;
   $('rule-audit').hidden=false;
   const q=$('rule-audit-search').value.trim().normalize('NFKC').toLowerCase();
   const matched=allHabitats.filter(r=>(r.id+' '+r.label+' '+r.pending.join(' ')+' '+r.limitations.join(' ')).normalize('NFKC').toLowerCase().includes(q));
@@ -120,6 +120,7 @@ function toggleComparison(id){
   updateCompareButton();renderCompare();saveURL();
 }
 function renderCompare(){
+  if(view!=='compare')return;
   const series=comparison.map(byId).filter(Boolean).map(effective).map(s=>({s,a:summarize(catalog,s,state)})).sort((a,b)=>(b.a.area??-1)-(a.a.area??-1));
   const max=Math.max(0,...series.map(x=>x.a.area||0));
   $('comparison-chips').innerHTML=series.map(({s})=>`<span class="chip">${esc(s.name)}<button data-remove="${s.id}" aria-label="${esc(s.name)}を比較から外す">×</button></span>`).join('');
@@ -182,7 +183,7 @@ async function init(){
     state.unit=params.get('unit')==='ha'?'ha':'km2';$('unit').value=state.unit;
     $('region').value=state.region;$('scope').value=state.scope;renderPrefs();$('boot').hidden=true;$('workspace').hidden=false;
     $('catalog-count').textContent=`生息環境登録 ${int.format(catalog.counts.habitat)} / ${int.format(catalog.counts.taxonomy)}種`;
-    chooseCandidate(null);renderGenus();initSlides();
+    chooseCandidate(null);renderGenus();
     renderSearch();renderSelected();renderCompare();setView(views.includes(params.get('view'))?params.get('view'):'explore');
     document.addEventListener('click',event=>{const el=event.target.closest('button');if(!el)return;if(el.dataset.view)setView(el.dataset.view);if(el.dataset.species)changeSpecies(el.dataset.species);if(el.dataset.remove)toggleComparison(el.dataset.remove);if(el.dataset.candidate)chooseCandidate(el.dataset.candidate);});
     const resetSearch=()=>{shown=50;$('species-list').scrollTop=0;$('species-list').scrollLeft=0;renderSearch();};
@@ -207,7 +208,8 @@ async function init(){
   }catch(error){$('boot').hidden=false;$('boot').innerHTML='<p>初期データを読み込めませんでした。接続を確認して再読み込みしてください。</p><button id="retry-init" class="primary-button">再読み込み</button>';$('retry-init').onclick=()=>location.reload();console.error(error);}
 }
 async function initSlides(){
-  if(!['127.0.0.1','localhost'].includes(location.hostname))return;
+  if(slidesStarted||!['127.0.0.1','localhost'].includes(location.hostname))return;
+  slidesStarted=true;
   try{const response=await fetch('./preview-slides/manifest.json');if(!response.ok)return;const deck=await response.json();if(deck.pages!==20)return;
     let page=1;const show=()=>{$('presentation-slide').src=`./preview-slides/page-${String(page).padStart(2,'0')}.png`;$('presentation-slide').alt=`発表資料 ${page}ページ目`;$('slide-page').textContent=`${page} / ${deck.pages}`;$('slide-prev').disabled=page===1;$('slide-next').disabled=page===deck.pages;};
     $('slide-prev').onclick=()=>{if(page>1){page--;show();}};$('slide-next').onclick=()=>{if(page<deck.pages){page++;show();}};$('presentation').hidden=false;show();

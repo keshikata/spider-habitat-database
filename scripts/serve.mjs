@@ -6,6 +6,7 @@ import {fileURLToPath} from 'node:url';
 const root=fs.realpathSync(fileURLToPath(new URL('../site/',import.meta.url)));
 const prefix=root+path.sep;
 const previewRoot=path.resolve(root,'../local/spatial');
+const slidesRoot=path.resolve(root,'../local/presentation');
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.txt':'text/plain; charset=utf-8','.gz':'application/gzip'};
 const headers={};
 for(const line of fs.readFileSync(path.join(root,'_headers'),'utf8').split(/\r?\n/)){
@@ -26,10 +27,12 @@ http.createServer((req,res)=>{
   try{
     const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
     if(pathname.includes('\\')||pathname.includes('\0')||pathname.split('/').some(p=>p.startsWith('.')||p.startsWith('_')))return finish(404);
+    const slides=pathname.startsWith('/preview-slides/');
+    if(slides&&!/^\/preview-slides\/(?:manifest\.json|page-(?:0[1-9]|1[0-9]|20)\.png)$/.test(pathname))return finish(404);
     const preview=pathname.startsWith('/preview-data/');
-    if(preview&&!/^\/preview-data\/(?:summary\.json|manifest\.json|(?:overview|(?:hokkaido|tohoku|kanto|chubu|kinki|chugoku|shikoku|kyushu|okinawa)-\d{2,3}-\d{2,3})-[a-f0-9]{12}\.json\.gz)$/.test(pathname))return finish(404);
-    const confinedRoot=preview?fs.realpathSync(previewRoot):root;
-    const filename=fs.realpathSync(preview?path.join(confinedRoot,path.basename(pathname)):path.resolve(root,'.'+(pathname==='/'?'/index.html':pathname)));
+    if(preview&&!/^\/preview-data\/(?:summary\.json|manifest\.json|geography-manifest\.json|geography\.json\.gz|(?:overview|(?:hokkaido|tohoku|kanto|chubu|kinki|chugoku|shikoku|kyushu|okinawa)-\d{2,3}-\d{2,3})-[a-f0-9]{12}\.json\.gz)$/.test(pathname))return finish(404);
+    const confinedRoot=slides?fs.realpathSync(slidesRoot):preview?fs.realpathSync(previewRoot):root;
+    const filename=fs.realpathSync(preview||slides?path.join(confinedRoot,path.basename(pathname)):path.resolve(root,'.'+(pathname==='/'?'/index.html':pathname)));
     if(!filename.startsWith(confinedRoot+path.sep)||!fs.statSync(filename).isFile())return finish(404);
     let body=fs.readFileSync(filename);const ext=path.extname(filename),output={...headers,'Content-Type':types[ext]||'application/octet-stream','Cache-Control':'no-cache','Vary':'Accept-Encoding'};
     if(/\bgzip\b/.test(req.headers['accept-encoding']||'')&&['.html','.js','.css','.json','.svg','.txt'].includes(ext)){body=gzipSync(body);output['Content-Encoding']='gzip';}

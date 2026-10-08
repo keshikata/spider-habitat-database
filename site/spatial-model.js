@@ -1,4 +1,5 @@
 import {prefecturesFor,pixelArea} from './model.js';
+import {recordScope,scopedSummaries} from './record-geography.js';
 export const SPATIAL_MODEL='spatial-exploration-1.0.0';
 export function selectedRules(species,rules,settings){
   const ids=settings.habitats?.[species.id];
@@ -30,10 +31,11 @@ export function effectiveSpecies(data,s,settings){
 export function summarizeSpatial(catalog,data,s,settings){
   const prefs=prefecturesFor(catalog,settings.region,settings.pref,settings.scope,s),mask=acceptedKeys(s,data.rules[s.id]||[],settings),areas=Array(16).fill(0);
   let meshes=0,total=0,missing=0,elevationMissing=0;
-  for(const p of prefs){const row=data.summary[p];meshes+=row.meshes;for(let k=0;k<1024;k++){const a=row.areas[k];total+=a;if(k<64)missing+=a;if(Math.floor(k/16)%4===3)elevationMissing+=a;if(mask[k])areas[Math.floor(k/64)]+=a;}}
+  const geography=recordScope(data.geography,s,prefs,settings.scope),rows=scopedSummaries(data,geography);
+  for(const row of rows){meshes+=row.meshes;for(let k=0;k<1024;k++){const a=row.areas[k];total+=a;if(k<64)missing+=a;if(Math.floor(k/16)%4===3)elevationMissing+=a;if(mask[k])areas[Math.floor(k/64)]+=a;}}
   const mapped=mask.some(Boolean);
   const empty=Array.isArray(settings.habitats?.[s.id])&&!settings.habitats[s.id].length;
-  return {area:mapped&&prefs.length?areas.reduce((a,b)=>a+b,0):null,status:empty?'no_environment':!mapped?'unmapped':!prefs.length?'no_scope':'evaluated',areas,prefs,meshes,total,missing,elevationMissing,records:prefs.reduce((n,p)=>n+(Number(s.records[p])||0),0)};
+  return {area:mapped&&prefs.length&&rows.length?areas.reduce((a,b)=>a+b,0):null,status:empty?'no_environment':!mapped?'unmapped':!prefs.length?'no_scope':!rows.length?'no_geography':geography.unresolved.length?'partial_geography':'evaluated',geography,areas,prefs,meshes,total,missing,elevationMissing,records:prefs.reduce((n,p)=>n+(Number(s.records[p])||0),0)};
 }
 export function evaluateStrata(flat,mask){
   let total=0,matching=0;const counts=Array(16).fill(0),matched=Array(16).fill(0);

@@ -6,6 +6,7 @@
 | --- | --- |
 | JAXA HRLULC 2024JPN_v25.04 | [配布元](https://www.eorc.jaxa.jp/ALOS/jp/dataset/lulc_j.htm)と[研究データ利用条件](https://earth.jaxa.jp/ja/data/policy/)を確認。無償の利用・改変・第三者配布が可能で、提供元・データ名の表示が必要。商用目的の事前連絡と、成果公表時の任意連絡を区別する。 |
 | 国土数値情報 行政区域2025年版 | [当該版](https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N03-2025.html)のCC BY 4.0、出典・加工表示を確認。参照した環境集計では画素の所属県を決めるために使用。行政境界の図形や元GISは配信しない。測量成果の一般配信手続はCC BYだけから不要と断定しない。 |
+| 国土数値情報 海岸線2006年（C23） | [配布元](https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-C23.html)の39都道府県分を2026-10-08取得し、海岸線からの距離を計算。[旧国土情報利用約款](https://nlftp.mlit.go.jp/ksj/other/agreement_02.html)・非商用、原線の複製物再配布は除外。原線と加工集計はローカル研究用に保管し、公開コードには含めない。2006年以降の海岸変化は反映しない。 |
 | 国土地理院DEM | [手続案内](https://www.gsi.go.jp/LAW/2930-index.html)と[利用例](https://www.gsi.go.jp/LAW/2930-sample.html)を確認。非商用・趣味研究だけを理由に公開地図の手続が不要とは判断できない。公開条件が確認できるまでDEM由来の解析地図を一般配信へ含めない。 |
 | 地理院タイル | [Q1-12](https://www.gsi.go.jp/LAW/2930-qa.html)に従い、閲覧者のブラウザからリアルタイムで表示し、地理院タイル一覧へのリンクと必要な個別出典を記す。保存したタイルの再配布は行わない。 |
 | Japan Spider Catalog | 所有者が指定した分類参照元。学名・和名・科・属・種IDを選別して使う。写真や人物情報、内部ノートを分類情報に混ぜない。公開サイトのTaxonName.json・DistributionRecord_web.records.json・UpdateHistory.jsonを2026-10-08に取得。配信履歴ver.2.0.7（2026-09-25）。参照日と入力ハッシュを記録し、分類・県別集計と本土部／島名／不明の記録区分のみを再配信する。 |

@@ -5,7 +5,7 @@ import {gzipSync} from 'node:zlib';
 import {fileURLToPath} from 'node:url';
 const root=fs.realpathSync(fileURLToPath(new URL('../site/',import.meta.url)));
 const prefix=root+path.sep;
-const previewRoot=path.resolve(root,'../local/spatial');
+const previewRoot=path.resolve(root,'../local/spatial-compound');
 const slidesRoot=path.resolve(root,'../local/presentation');
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.txt':'text/plain; charset=utf-8','.gz':'application/gzip'};
 const headers={};

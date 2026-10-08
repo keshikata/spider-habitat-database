@@ -4,10 +4,44 @@ import {acceptedKeys,evaluateStrata,geoFeature,summarizeSpatial,habitatMetadata}
 const key=(c,h,w,b)=>c*64+h*16+w*4+b;
 const s={id:'1',name:'テスト種',scientific:'Test species',classes:[5,6],records:{1:1}};
 
+test('forest-edge and paddy predicates survive sparse summaries and habitat unions',()=>{
+  const edge={id:'E',label:'林縁の草地',classes:[5],edge:true,elevation:[0,1,2,3]};
+  const rice={id:'R',label:'水田の周囲',classes:[5],rice:true,elevation:[0,1,2,3]};
+  const missing={id:'U',label:'植林地',classes:[6],supported:false,pending:['人工林区分'],elevation:[0,1,2,3]};
+  const nearEdge=key(5,0,3,3)+3072+3*16384,nearRice=key(5,0,3,3)+3072+3*4096,both=key(5,0,3,3)+3072,neither=key(5,0,3,3)+3072+3*4096+3*16384;
+  const settings={model:'elevation',distance:100,scope:'environment',region:'all',pref:''};
+  const data={rules:{1:[edge,rice,missing]},summary:{1:{meshes:4,areas:{[nearEdge]:2,[nearRice]:3,[both]:5,[neither]:7}}}};
+  const catalog={prefectures:['北海道'],regions:{hokkaido:[1]}};
+  assert.equal(summarizeSpatial(catalog,data,s,{...settings,habitats:{1:['E']}}).area,7);
+  assert.equal(summarizeSpatial(catalog,data,s,{...settings,habitats:{1:['R']}}).area,8);
+  const union=summarizeSpatial(catalog,data,s,settings);
+  assert.equal(union.area,10);assert.equal(union.total,17);assert.equal(union.status,'partial_environment');
+  assert.deepEqual(union.excludedHabitats,['植林地']);
+  assert.equal(habitatMetadata(s,[edge],settings)[0].forest_edge_distance_m,100);
+  assert.equal(habitatMetadata(s,[rice],settings)[0].paddy_distance_m,100);
+});
+
+test('coastal grass requires coastline proximity and excludes inland waterside grass',()=>{
+  const shore={id:'H132',label:'海岸の草地',classes:[5],baseClasses:[5],coast:true,water:false,built:false,elevation:[0,1,2,3]};
+  const forest={id:'H066',label:'森林',classes:[6],baseClasses:[6],coast:false,water:false,built:false,elevation:[0,1,2,3]};
+  const inlandLake=3072+key(5,0,0,3),coastalGrass=key(5,0,3,3),coastalForest=key(6,0,0,3);
+  const settings={model:'distance',distance:100,scope:'environment'},mask=acceptedKeys(s,[shore],settings);
+  assert.equal(mask[inlandLake],0);assert.equal(mask[coastalGrass],1);assert.equal(mask[coastalForest],0);
+  const flat=[coastalGrass,7,coastalForest,11,inlandLake,13];
+  assert.equal(evaluateStrata(flat,mask).matching,7);
+  assert.equal(evaluateStrata(flat,acceptedKeys(s,[shore,forest],settings)).matching,18);
+  const water={...shore,coast:false,water:true};
+  assert.equal(evaluateStrata(flat,acceptedKeys(s,[shore,water,forest],settings)).matching,31);
+  const rings=[100,250,500].map(distance=>acceptedKeys(s,[shore],{...settings,distance}));
+  assert.equal(rings[0][1024+coastalGrass],0);assert.equal(rings[1][1024+coastalGrass],1);assert.equal(rings[2][2048+coastalGrass],1);
+  for(let i=0;i<4096;i++){assert.ok(rings[0][i]<=rings[1][i]);assert.ok(rings[1][i]<=rings[2][i]);}
+  assert.equal(habitatMetadata(s,[shore],settings)[0].coast_distance_m,100);
+});
+
 test('GIS export records only selected habitats and the conditions actually applied',()=>{
   const rules=[{id:'H001',label:'水辺の草地',classes:[5],baseClasses:[5],water:true,built:false,elevation:[0]}, {id:'H002',label:'公園',classes:[5,6],baseClasses:[],water:false,built:true,elevation:[0,1,2,3]}];
   const settings={model:'distance',distance:250,scope:'environment',habitats:{1:['H001']}};
-  assert.deepEqual(habitatMetadata(s,rules,settings),[{id:'H001',label:'水辺の草地',classes:[5],water_distance_m:250,built_distance_m:null,elevation_bands:null}]);
+  assert.deepEqual(habitatMetadata(s,rules,settings),[{id:'H001',label:'水辺の草地',classes:[5],water_distance_m:250,coast_distance_m:null,built_distance_m:null,forest_edge_distance_m:null,paddy_distance_m:null,elevation_bands:null,evaluation:'calculated',unresolved:[],limitations:[]}]);
   assert.equal(habitatMetadata(s,rules,{...settings,model:'cover'})[0].water_distance_m,null);
   assert.deepEqual(habitatMetadata(s,rules,{...settings,model:'elevation'})[0].elevation_bands,[0]);
   assert.deepEqual(habitatMetadata(s,rules,{...settings,habitats:{1:[]}}),[]);

@@ -13,6 +13,8 @@ from shapely.geometry import Point
 from build_data import ROOT, pixel_area_km2
 
 def build(args):
+    manifest=json.loads((args.out/'manifest.json').read_text(encoding='utf-8'))
+    strata=65536 if manifest['schema']==4 else 4096 if manifest['schema']==3 else 1024
     catalog=json.loads((ROOT/'site/data/catalog.json').read_text(encoding='utf-8'))
     frame=gpd.read_file(args.boundaries).to_crs(4326)
     polygons=[];prefs=[];by_pref=collections.defaultdict(list)
@@ -29,7 +31,7 @@ def build(args):
     region_for_polygon={};regions={};island_ids={};mainland={};unresolved=[]
     def register(index,name):
         rid=str(index+1)
-        if rid not in regions:regions[rid]={'pref':prefs[index],'names':[],'bounds':list(polygons[index].bounds),'areas':np.zeros(1024),'meshes':0}
+        if rid not in regions:regions[rid]={'pref':prefs[index],'names':[],'bounds':list(polygons[index].bounds),'areas':np.zeros(strata),'meshes':0}
         if name not in regions[rid]['names']:regions[rid]['names'].append(name)
         region_for_polygon[index]=int(rid)
         return rid
@@ -76,7 +78,7 @@ def build(args):
             for k,n in zip(flat[::2],flat[1::2]):region['areas'][k]+=n*pixel_area;coarse[(x//64*64,y//64*64,p,int(rid))][k]+=n
         all_runs[tile['id']]=runs
         if (i+1)%100==0 or i+1==len(manifest['tiles']):print(json.dumps({'tiles':i+1,'total':len(manifest['tiles'])}),flush=True)
-    for r in regions.values():r['areas']=r['areas'].tolist()
+    for r in regions.values():r['areas']=({str(int(k)):float(r['areas'][k]) for k in np.flatnonzero(r['areas'])} if manifest['schema']==4 else r['areas'].tolist())
     overview=[[x,y,p,[n for k,v in sorted(counts.items()) for n in (k,v)],rid] for (x,y,p,rid),counts in coarse.items()]
     value={'schema':1,'source':'国土数値情報 行政区域2025（CC BY 4.0） / Japan Spider Catalog 島嶼代表点',
            'method':'250m mesh land-component assignment; offshore centres use a single intersecting component; ambiguous boundary meshes excluded',

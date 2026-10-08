@@ -1,6 +1,6 @@
-# 無料公開の構成と残る確認
+# 無料公開の構成と更新手順
 
-2026-10-08更新。Cloudflare Pagesの空プロジェクト `spider-habitat-atlas` を作成済み。サイトはまだデプロイしていない。
+2026-10-08に[本番サイト](https://spider-habitat-atlas.pages.dev/)を初回公開した。配信記録・公開直後の確認・今後の作業は[公開後の作業](post-release.md)を参照。
 
 公開前の改善・回帰確認と、検証した公開候補の識別値は[最終確認](prepublication-check.md)に記録した。
 
@@ -32,14 +32,15 @@ node scripts/check-public-site.mjs
 
 [管理画面のアップロードは1,000ファイル、Wranglerは20,000ファイル](https://developers.cloudflare.com/pages/get-started/direct-upload/)のため、今回の配信はWranglerを使用する。公開対象は `site/` や研究フォルダではなく、確認済みの `output/public-site/` のみ。
 
-## 配信前に行うこと
+## 次の更新を配信する前に行うこと
 
 - 公開用フォルダだけを使ったプレビューで検索・保留表示・地図・比較・CSV・GeoJSON・発表資料を確認する。
 - `npm test`、`npm run check`、公開用データの全区画照合を通す。
 - 更新履歴へ実際の初回公開日を記入する。準備日を公開日として表示しない。
 - 公開リポジトリのコード・説明資料を同期する。配信データと資料画像は同リポジトリへ入れない。
 - ユーザーの公開指示を受けて `wrangler pages deploy output/public-site --project-name spider-habitat-atlas --branch main` を実行し、HTTPS・CSP・配信ヘッダー・ファイル取得を確認する。
+- `node scripts/check-deployment.mjs https://spider-habitat-atlas.pages.dev/ output/public-site` で主要配信ファイルの内容とヘッダーを照合し、実ブラウザーでも主要操作を確認する。
 
-この文書は配信準備を示し、デプロイや許諾問い合わせを実行済みとするものではない。
+初回のデプロイと本番確認は完了した。許諾問い合わせ・GSI申請は送信していない。
 
 公開後に不具合が見つかった場合は、新しい配信を止め、保持した前回の検証済みフォルダと配信履歴から復旧する。初回公開で戻す版がない場合は公開停止を判断する。原因不明のまま研究用フォルダや未検証のデータへ差し替えない。

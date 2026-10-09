@@ -42,7 +42,7 @@ function renderSearch(){
   const found=catalog.species.filter(s=>searchableSpecies(s)&&searchIndex.get(s.id).includes(term));
   $('search-count').textContent=`${int.format(Math.min(shown,found.length))} / ${int.format(found.length)}種を表示`;
   const scroll=$('species-list').scrollTop,left=$('species-list').scrollLeft,focused=$('species-list').contains(document.activeElement)?document.activeElement.dataset.species:null;
-  $('species-list').innerHTML=found.slice(0,shown).map(s=>`<button class="species-item${s.id===selected.id?' selected':''}" data-species="${s.id}" aria-pressed="${s.id===selected.id}"><strong>${esc(s.name)}</strong><em>${esc(s.scientific)}</em><small>${esc(s.familyJa)}${!effectiveSpeciesForSearch(s).classes.length?' · '+(s.environmentCount?'土地被覆は判定保留':'環境情報なし'):''}</small></button>`).join('')||'<p class="empty">該当する種がありません。<br>検索語や環境の条件を変えてください。</p>';
+  $('species-list').innerHTML=found.slice(0,shown).map(s=>`<button class="species-item${s.id===selected.id?' selected':''}" data-species="${s.id}" aria-pressed="${s.id===selected.id}"><strong>${esc(s.name)}</strong><em>${esc(s.scientific)}</em><small>${esc(s.familyJa)}${!effectiveSpeciesForSearch(s).classes.length?' · '+(s.environmentCount?'環境の判定は保留':'環境情報なし'):''}</small></button>`).join('')||'<p class="empty">該当する種がありません。<br>検索語や環境の条件を変えてください。</p>';
   $('species-list').dataset.more=String(found.length>shown);$('species-list').scrollTop=scroll;$('species-list').scrollLeft=left;
   if(focused)$('species-list').querySelector(`[data-species="${focused}"]`)?.focus({preventScroll:true});
 }
@@ -81,8 +81,8 @@ function renderRuleAudit(){
   const q=$('rule-audit-search').value.trim().normalize('NFKC').toLowerCase();
   const matched=allHabitats.filter(r=>(r.id+' '+r.label+' '+r.pending.join(' ')+' '+r.limitations.join(' ')).normalize('NFKC').toLowerCase().includes(q));
   const supported=allHabitats.filter(r=>r.supported),proxy=supported.filter(r=>r.proxy),held=allHabitats.filter(r=>r.publicationHold?.length).length;
-  $('rule-audit-count').textContent=`全${allHabitats.length}環境：条件を計算 ${supported.length-proxy.length}、近似条件で計算 ${proxy.length}、配布条件の確認待ち ${held}、未評価 ${allHabitats.length-supported.length-held}。現在 ${matched.length}件を表示。`;
-  $('rule-audit-rows').innerHTML=matched.map(r=>`<tr><th scope="row">${esc(r.label)}<small>${esc(r.id)}</small></th><td>${r.supported?esc(ruleDescription(r)):'面積・地図へ加算しない'}</td><td>${r.publicationHold?.length?'配布条件の確認待ち':r.supported?(r.proxy?'近似条件':'条件を計算'):'未評価'}</td><td>${esc((r.supported?r.limitations:r.pending).join('。')||'指定した土地被覆と距離条件を使用')}</td></tr>`).join('');
+  $('rule-audit-count').textContent=`全${allHabitats.length}環境：条件を計算 ${supported.length-proxy.length}、近似条件で計算 ${proxy.length}、計算・配布を保留 ${held}、未評価 ${allHabitats.length-supported.length-held}。現在 ${matched.length}件を表示。`;
+  $('rule-audit-rows').innerHTML=matched.map(r=>`<tr><th scope="row">${esc(r.label)}<small>${esc(r.id)}</small></th><td>${r.supported?esc(ruleDescription(r)):'面積・地図へ加算しない'}</td><td>${r.publicationHold?.length?'計算・配布を保留':r.supported?(r.proxy?'近似条件':'条件を計算'):'未評価'}</td><td>${esc((r.supported?r.limitations:r.pending).join('。')||'指定した土地被覆と距離条件を使用')}</td></tr>`).join('');
 }
 function applyHabitatFilter(ids){
   habitatFilter=ids;state.habitats=habitatSelection(spatial.data.rules,ids);

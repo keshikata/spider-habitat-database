@@ -10,9 +10,9 @@ def public_audit(args):
         raise ValueError('Public review requires the prepared public summary')
     catalog=json.loads((ROOT/'site/data/catalog.json').read_text(encoding='utf-8'))
     rules={r['id']:r for rs in source['rules'].values() for r in rs}
-    status=lambda r:'配布条件の確認待ち' if r.get('publicationHold') else '未評価' if not r['supported'] else '近似条件' if r['proxy'] else '条件を計算'
+    status=lambda r:'計算・配布を保留' if r.get('publicationHold') else '未評価' if not r['supported'] else '近似条件' if r['proxy'] else '条件を計算'
     counts=collections.Counter(status(r) for r in rules.values())
-    lines=['# 生息環境の対応一覧','',f"2026-10-08。公開用の規則から生成。全{len(rules)}環境のうち{counts['条件を計算']+counts['近似条件']}環境を計算、{counts['配布条件の確認待ち']}環境は配布条件の確認待ち、{counts['未評価']}環境はその他の未評価。すべて名称で検索できる。標高による限定は現在行わない。",'', '| ID | 環境名 | 現在の条件 | 扱い | 限界・保留理由 |','| --- | --- | --- | --- | --- |']
+    lines=['# 生息環境の対応一覧','',f"{source.get('publicationDate', source['date'])}。公開用の規則から生成。全{len(rules)}環境のうち{counts['条件を計算']+counts['近似条件']}環境を計算、{counts['計算・配布を保留']}環境は計算・配布を保留、{counts['未評価']}環境はその他の未評価。すべて名称で検索できる。標高条件を必要とする環境は、高さで限定できるまで地図・面積に含めない。",'', '| ID | 環境名 | 現在の条件 | 扱い | 限界・保留理由 |','| --- | --- | --- | --- | --- |']
     vegetation={1:'果樹園',2:'植林地',3:'牧草地',4:'ハイマツ群落',5:'低木群落'}
     for rid,r in sorted(rules.items()):
         conditions=['・'.join(catalog['classes'][c] for c in r['classes'])]

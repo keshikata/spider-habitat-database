@@ -6,12 +6,16 @@ import {createHash} from 'node:crypto';
 import {APPLICATION_ASSETS,checkPublicPaths,verifyAssetDigest} from './public-assets.mjs';
 import {validateDelivery} from '../site/delivery.js';
 import {checkSharing} from './check-sharing.mjs';
+import {PUBLICATION_POLICY,publicationRule} from '../site/publication-policy.js';
 
 const root=path.resolve(process.argv[2]||'output/public-site');
 const sharing=checkSharing(root);
 const read=name=>JSON.parse(fs.readFileSync(path.join(root,name)));
 const delivery=validateDelivery(read('data/spatial/delivery-manifest.json')),manifest=read('data/spatial/manifest.json');
 const infos=[delivery.summary,delivery.geography,...Object.values(delivery.prefectures),...Object.values(delivery.regions),manifest.overview,...manifest.tiles];
+const summary=JSON.parse(gunzipSync(fs.readFileSync(path.join(root,'data/spatial',delivery.summary.file)),{maxOutputLength:delivery.summary.decodedBytes}));
+assert.equal(summary.publicationPolicy,PUBLICATION_POLICY);assert.equal(summary.dem,false);assert.equal(summary.localOnly,false);
+assert.ok(Object.values(summary.rules).flat().every(r=>!r.supported||publicationRule(r).supported!==false),'A held condition must not be dropped from an evaluated habitat');
 const allowed=new Set([...APPLICATION_ASSETS,'data/search.json','data/search.json.gz','data/taxonomy-crosswalk.json','data/spatial/manifest.json','data/spatial/delivery-manifest.json',...infos.map(i=>'data/spatial/'+i.file),'slides/manifest.json',...Array.from({length:20},(_,i)=>`slides/page-${String(i+1).padStart(2,'0')}.png`)]);
 const files=checkPublicPaths(root,allowed),hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 assert.equal(hash(fs.readFileSync(path.join(root,'data/spatial/manifest.json'))),delivery.sourceManifestSHA256);

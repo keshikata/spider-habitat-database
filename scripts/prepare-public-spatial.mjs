@@ -38,7 +38,7 @@ export function preparePublicSpatial(source,destination){
   const sourceManifestSHA256=hash(fs.readFileSync(path.join(destination,'manifest.json')));
   const original=read('summary.json'),rules=Object.fromEntries(Object.entries(original.rules).map(([id,rs])=>[id,rs.map(publicationRule)]));
   const summary=Object.fromEntries(Object.entries(original.summary).map(([p,r])=>[p,{meshes:r.meshes,areas:projectAreas(r.areas)}]));
-  write('summary.json',{schema:5,model:m.model,date:original.date,localOnly:false,publicationPolicy:PUBLICATION_POLICY,dem:false,distances:[100,250,500],elevationBands:[],rules,summary,bounds:original.bounds,cells:original.cells,source:PUBLIC_SOURCES,license:PUBLIC_LICENSES,excludedLayers:['elevation','coast_distance','river_distance']});
+  write('summary.json',{schema:5,model:m.model,date:original.date,localOnly:false,publicationPolicy:PUBLICATION_POLICY,publicationDate:PUBLICATION_POLICY.slice(-10),dem:false,distances:[100,250,500],elevationBands:[],rules,summary,bounds:original.bounds,cells:original.cells,source:PUBLIC_SOURCES,license:PUBLIC_LICENSES,excludedLayers:['elevation','coast_distance','river_distance']});
   const gi=read('geography-manifest.json'),g=unpack({...gi,file:'geography.json.gz'});
   if(g.sourceManifestSHA256!==hash(originalManifest))throw new Error('Source geography differs from map');
   const regions=Object.fromEntries(Object.entries(g.regions).map(([id,r])=>[id,{pref:r.pref,names:r.names,bounds:r.bounds,meshes:r.meshes,areas:projectAreas(r.areas)}]));

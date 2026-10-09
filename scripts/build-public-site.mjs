@@ -3,7 +3,7 @@ import path from 'node:path';
 import {gunzipSync} from 'node:zlib';
 import {createHash} from 'node:crypto';
 import {validateDelivery} from '../site/delivery.js';
-import {PUBLICATION_POLICY,publicStratum} from '../site/publication-policy.js';
+import {PUBLICATION_POLICY,publicStratum,publicationRule} from '../site/publication-policy.js';
 import {APPLICATION_ASSETS} from './public-assets.mjs';
 const out=path.resolve(process.argv[2]||'output/public-site'),spatial=path.resolve(process.argv[3]||'local/public-spatial'),slides=path.resolve(process.argv[4]||'local/public-presentation');
 if(fs.existsSync(out)&&fs.readdirSync(out).length)throw new Error('Output must be a new empty directory');
@@ -21,7 +21,7 @@ const summary=verified(d.summary);
 if(summary.publicationPolicy!==PUBLICATION_POLICY||summary.dem!==false||summary.localOnly!==false)throw new Error('Research data must not be published');
 if(createHash('sha256').update(fs.readFileSync(path.join(spatial,'manifest.json'))).digest('hex')!==d.sourceManifestSHA256)throw new Error('Manifest digest mismatch');
 const validAreas=areas=>Object.keys(areas).every(k=>publicStratum(+k)===+k);
-if(!Object.values(summary.summary).every(r=>validAreas(r.areas))||Object.values(summary.rules).flat().some(r=>r.supported&&(r.river||r.coast)))throw new Error('Held data found');
+if(!Object.values(summary.summary).every(r=>validAreas(r.areas))||Object.values(summary.rules).flat().some(r=>r.supported&&publicationRule(r).supported===false))throw new Error('Held data or unevaluable habitat found');
 const g=verified(d.geography);if(!Object.values(g.regions).every(r=>validAreas(r.areas)))throw new Error('Held regional data found');
 const infos=[d.summary,d.geography,...Object.values(d.prefectures),...Object.values(d.regions),m.overview,...m.tiles];
 for(const info of infos){const value=verified(info);if(Array.isArray(value.cells)&&value.cells.some(r=>r[3].some((k,i)=>i%2===0&&publicStratum(k)!==k)))throw new Error('Held map data found');}

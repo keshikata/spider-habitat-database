@@ -1,4 +1,5 @@
-import {PUBLIC_SOURCES,PUBLIC_LICENSES,HELD_LAYERS} from './publication-policy.js';
+import {PUBLIC_SOURCES,PUBLIC_LICENSES,HELD_LAYERS,heldLayers} from './publication-policy.js';
+import {elevationThresholds,elevationRuleDescription,DEFAULT_ELEVATION_THRESHOLDS} from './elevation.js';
 import {MODEL,REGION_NAMES,prefecturesFor,summarize as summarizeBase,meshPosition,pixelArea,matchCell,escapeHTML as esc,csv,includedClasses,excludedClasses} from './model.js';
 import {readCompressed,createHabitatMap} from './map.js';
 import {loadSpatial} from './spatial.js';
@@ -17,19 +18,19 @@ const number=new Intl.NumberFormat('ja-JP',{maximumFractionDigits:1});
 const int=new Intl.NumberFormat('ja-JP');
 const effective=(s,settings=state)=>spatial?effectiveSpecies(spatial.data,s,settings):({...s,classes:includedClasses(s.classes,settings),availableClassCount:s.classes.length,pending:s.pending.map(v=>v==='標高・気候'?'標高':v).filter(v=>!/気候|気温/.test(v))});
 const summarize=(c,s,settings=state)=>spatial?summarizeSpatial(c,spatial.data,s,settings):summarizeBase(c,s,settings);
-const conditionLabel=()=>!spatial||state.model==='cover'?'土地被覆のみ':`距離 ${state.distance}m`;
+const conditionLabel=()=>!spatial||state.model==='cover'?'土地被覆のみ':`距離 ${state.distance}m`+(state.elevationStepM===100?` / 標高基準 ${state.lowlandMax}m・${state.mountainMin}m`:'');
 const fmt=area=>area==null?'判定保留':number.format(area*(state.unit==='ha'?100:1));
 const resultValue=a=>a.status==='no_environment'?'環境未選択':a.status==='no_landcover'?'土地被覆未選択':a.status==='no_scope'?'対象県なし':a.status==='no_geography'?'島の範囲未対応':fmt(a.area);
 const unit=()=>state.unit==='ha'?'ha':'km²';
 function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,3500);}
 function byId(id){return catalog.species.find(s=>s.id===id);}
 function scopeLabel(){return (state.pref?catalog.prefectures[+state.pref-1]:REGION_NAMES[state.region])+' / '+(state.scope==='recorded'?(spatial?.data.geography?'記録のある本土・島':'種ごとの記録県内'):'全地域の環境のみ')+' / '+conditionLabel()+(state.excludedClasses.length?' / '+landcoverNote():'');}
-function saveURL(){const p=new URLSearchParams({species:selected.id,region:state.region,scope:state.scope,unit:state.unit,view,model:state.model,distance:String(state.distance)});if(state.pref)p.set('pref',state.pref);if(comparison.length)p.set('compare',comparison.join(','));if(habitatFilter!==null)p.set('habitat',habitatFilter.join('.'));if(state.excludedClasses.length)p.set('excludeCover',state.excludedClasses.join('.'));history.replaceState(null,'','?'+p);}
+function saveURL(){const p=new URLSearchParams({species:selected.id,region:state.region,scope:state.scope,unit:state.unit,view,model:state.model,distance:String(state.distance)});if(state.pref)p.set('pref',state.pref);if(comparison.length)p.set('compare',comparison.join(','));if(habitatFilter!==null)p.set('habitat',habitatFilter.join('.'));if(state.excludedClasses.length)p.set('excludeCover',state.excludedClasses.join('.'));if(state.elevationStepM===100){p.set('lowlandMax',String(state.lowlandMax));p.set('mountainMin',String(state.mountainMin));}history.replaceState(null,'','?'+p);}
 function setView(next){
   if(!views.includes(next))return;
   view=next;for(const id of views)$(id).hidden=id!==view;
   for(const button of document.querySelectorAll('.nav-button')){const active=button.dataset.view===view;button.classList.toggle('active',active);if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');}
-  document.querySelector('.scope-bar').hidden=['guide','methods','updates'].includes(view);$('analysis-controls').hidden=!spatial||['guide','methods','updates'].includes(view);
+  document.querySelector('.scope-bar').hidden=['guide','methods','updates'].includes(view);$('analysis-controls').hidden=!spatial||['guide','methods','updates'].includes(view);$('elevation-controls').hidden=!spatial?.profile.elevation||['guide','methods','updates'].includes(view);
   if(view==='explore'){map?.resize();renderMap(true);}else map?.suspend();if(view==='compare'){renderCompare();renderPicker();}if(view==='export')renderExportScope();if(view==='methods'){renderRuleAudit();initSlides();}renderLandcoverNotice();saveURL();
 }
 function renderPrefs(){
@@ -59,7 +60,8 @@ function ruleDescription(r){
   if(state.model!=='cover'&&r.coast)parts.push(`海岸線から${state.distance}m以内`);
   if(state.model!=='cover'&&r.water)parts.push(`水域から${state.distance}m以内`);
   if(state.model!=='cover'&&r.built)parts.push(`人工構造物から${state.distance}m以内`);
-  if(state.model==='elevation'&&r.elevation.length<4)parts.push(r.elevation.map(h=>spatial.data.elevationBands[h]).join('・'));
+  if(state.elevationStepM===100&&r.elevationRequired)parts.push(elevationRuleDescription(r.elevation,state));
+  else if(state.model==='elevation'&&r.elevation.length<4)parts.push(r.elevation.map(h=>spatial.data.elevationBands[h]).join('・'));
   if(state.model!=='elevation'&&r.elevation.length<4)parts.push('標高条件は未実装');
   return parts.join(' かつ ');
 }
@@ -127,6 +129,27 @@ function applyLandcoverFilter(excluded,focusClass){
   state.excludedClasses=excludedClasses(excluded);geoController?.abort();map?.closePopup();renderSelected();renderCompare();renderExportScope();renderMap();saveURL();
   if(focusClass)$('rule-tags').querySelector(`[data-cover="${focusClass}"]`)?.focus({preventScroll:true});
 }
+function renderElevationControls(){
+  if(!spatial?.profile.elevation)return;
+  for(const [id,selected] of [['lowland-max',state.lowlandMax],['mountain-min',state.mountainMin]]){
+    $(id).innerHTML=Array.from({length:id==='lowland-max'?29:30},(_,i)=>{const metres=(i+1)*100,disabled=id==='lowland-max'?metres>=state.mountainMin:metres<=state.lowlandMax;return `<option value="${metres}"${disabled?' disabled':''}>${metres}m</option>`;}).join('');$(id).value=String(selected);
+  }
+  $('reset-elevation').disabled=state.lowlandMax===DEFAULT_ELEVATION_THRESHOLDS.lowlandMax&&state.mountainMin===DEFAULT_ELEVATION_THRESHOLDS.mountainMin;
+  $('elevation-range-note').textContent=`平地側：${state.lowlandMax}m未満 ／ 低山地側：${state.lowlandMax}m以上${state.mountainMin}m未満 ／ 山地側：${state.mountainMin}m以上`;
+}
+function applyElevationThresholds(value){
+  Object.assign(state,elevationThresholds(value));geoController?.abort();map?.closePopup();renderElevationControls();renderSearch();renderSelected();renderCompare();renderExportScope();renderMap();saveURL();
+}
+function initElevation(params){
+  if(!spatial?.profile.elevation)return;
+  state.elevationStepM=100;state.modelVersion=spatial.data.model;Object.assign(state,elevationThresholds({lowlandMax:params.get('lowlandMax'),mountainMin:params.get('mountainMin')}));
+  renderElevationControls();$('elevation-preview-notice').hidden=!spatial.profile.preview;$('elevation-update').hidden=false;
+  const copy={method:'平地・低山地・山地などの記述は、選択した標高の範囲で近似します。平地側の上限と山地側の下限を100m刻みで変更でき、境界の間を低山地側として扱います。初期値は200m・800mです。地形分類や地域ごとの植生帯を確定する基準ではありません。高さの条件が必要な環境では標高の欠損を候補から除外します。',guide:'「標高の基準」で平地側の上限と山地側の下限を100m刻みで変更できます。初期値は200m・800mです。選んだ基準は地図・面積・比較・保存に共通で適用し、標高の欠損は高さの条件が必要な候補に含めません。',comparison:'標高は利用者が選んだ基準を適用。海岸線・河川への距離は保留',exports:'標高帯ごとに集計した加工データを含み、元のDEMや10m画素ごとの標高値は配布しません。海岸線距離・河川距離のデータは配布しません。',source:spatial.profile.preview?'標高機能は承認待ちのローカル確認用です。':spatial.data.elevationApproval.attribution+'。国土地理院の数値標高モデル10mを加工し、100m刻みの標高帯別集計として使用しています。','source-title':'標高','source-procedure':spatial.profile.preview?'の承認後に一般公開します。':'に従って利用します。',calculation:' 標高は100m刻みの帯ごとに集計します。選んだ基準で高さの範囲を判定し、土地被覆・距離・植生と併せて条件を満たす画素を選びます。',missing:' 高さの条件が必要な環境では、標高の欠損を候補面積から除き、欠損面積を別に表示します。',future:'海岸線・河川への距離は利用条件の確認待ちです。これらの距離の集計値と元DEMは配信・保存データへ含めません。'};
+  for(const node of document.querySelectorAll('[data-elevation-copy]'))node.textContent=copy[node.dataset.elevationCopy]||node.textContent;
+  $('lowland-max').onchange=()=>applyElevationThresholds({...state,lowlandMax:Number($('lowland-max').value)});
+  $('mountain-min').onchange=()=>applyElevationThresholds({...state,mountainMin:Number($('mountain-min').value)});
+  $('reset-elevation').onclick=()=>applyElevationThresholds(DEFAULT_ELEVATION_THRESHOLDS);
+}
 function changeSpecies(id){const s=byId(id);if(!s||!searchableSpecies(s))return;selected=s;renderSearch();renderSelected();renderMap(true);renderGenus();saveURL();}
 function toggleComparison(id){
   if(comparison.includes(id))comparison=comparison.filter(x=>x!==id);
@@ -145,8 +168,8 @@ function renderCompare(){
   $('export-csv').disabled=!series.length;
 }
 function downloadFile(name,rows){const url=URL.createObjectURL(new Blob([csv(rows)],{type:'text/csv;charset=utf-8;'}));const link=document.createElement('a');link.href=url;link.download=name+'.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-const csvHeader=['選択した生息環境','環境ID','和名','学名','JSC学名','環境','候補面積','面積単位','対象地域','分布条件','対象県数','評価状態','未評価条件','分類取得日','JSC版','土地被覆版','モデル','面積の定義','出典・利用条件','地域区分の注記','計算条件の限界','使用した土地被覆','除外した土地被覆'];
-function exportRow(s,a,environment,area,region){return [spatial?selectedRules(s,spatial.data.rules[s.id]||[],state).map(r=>r.label||r.id).join(' / '):'すべて',spatial?selectedRules(s,spatial.data.rules[s.id]||[],state).map(r=>r.id).join(' / '):'',s.name,s.scientific,s.catalogScientific,environment,area==null?resultValue(a):(area*(state.unit==='ha'?100:1)).toFixed(3),unit(),region,state.scope==='recorded'?(spatial?.data.geography?'記録のある本土・島に限定':'記録県に限定'):'環境のみ',a.prefs.length,a.status,s.pending.join(' / '),catalog.date,catalog.jsc.version,catalog.landcover,spatial?SPATIAL_MODEL:MODEL,'収録範囲の該当画素。'+conditionLabel()+'。土地被覆の欠損等を除く。',PUBLIC_SOURCES+' / '+PUBLIC_LICENSES+' / '+HELD_LAYERS,a.geography?geographicNote(spatial?.data.geography,a.geography):'県全域',spatial?selectedRules(s,spatial.data.rules[s.id]||[],state).map(r=>r.label+'：'+(r.supported===false?'未評価・'+r.pending.join('、'):r.limitations.join('、'))).join(' / '):'',s.classes.map(c=>catalog.classes[c]).join(' / '),state.excludedClasses.map(c=>catalog.classes[c]).join(' / ')];}
+const csvHeader=['選択した生息環境','環境ID','和名','学名','JSC学名','環境','候補面積','面積単位','対象地域','分布条件','対象県数','評価状態','未評価条件','分類取得日','JSC版','土地被覆版','モデル','面積の定義','出典・利用条件','地域区分の注記','計算条件の限界','使用した土地被覆','除外した土地被覆','平地側の上限_m','山地側の下限_m'];
+function exportRow(s,a,environment,area,region){return [spatial?selectedRules(s,spatial.data.rules[s.id]||[],state).map(r=>r.label||r.id).join(' / '):'すべて',spatial?selectedRules(s,spatial.data.rules[s.id]||[],state).map(r=>r.id).join(' / '):'',s.name,s.scientific,s.catalogScientific,environment,area==null?resultValue(a):(area*(state.unit==='ha'?100:1)).toFixed(3),unit(),region,state.scope==='recorded'?(spatial?.data.geography?'記録のある本土・島に限定':'記録県に限定'):'環境のみ',a.prefs.length,a.status,s.pending.join(' / '),catalog.date,catalog.jsc.version,catalog.landcover,spatial?spatial.data.model:MODEL,'収録範囲の該当画素。'+conditionLabel()+'。土地被覆の欠損等を除く。',(spatial?.data.source||PUBLIC_SOURCES)+' / '+(spatial?.data.license||PUBLIC_LICENSES)+' / '+heldLayers(spatial?.profile),a.geography?geographicNote(spatial?.data.geography,a.geography):'県全域',spatial?selectedRules(s,spatial.data.rules[s.id]||[],state).map(r=>r.label+'：'+(r.supported===false?'未評価・'+r.pending.join('、'):r.limitations.join('、'))).join(' / '):'',s.classes.map(c=>catalog.classes[c]).join(' / '),state.excludedClasses.map(c=>catalog.classes[c]).join(' / '),state.elevationStepM===100?state.lowlandMax:'',state.elevationStepM===100?state.mountainMin:''];}
 function downloadCompare(){const rows=[csvHeader];for(const id of comparison){const s=effective(byId(id)),a=summarize(catalog,s,state);rows.push(exportRow(s,a,'合計',a.area,scopeLabel()));}downloadFile('spider-habitat-comparison-'+catalog.date,rows);}
 function downloadEnvironment(ids){const rows=[csvHeader];for(const id of ids){const s=effective(byId(id)),a=summarize(catalog,s,state);rows.push(exportRow(s,a,'合計',a.area,scopeLabel()));for(const c of s.classes)rows.push(exportRow(s,a,catalog.classes[c],a.area==null?null:a.areas[c],scopeLabel()));}downloadFile('spider-habitat-environments-'+catalog.date,rows);}
 function downloadPrefectures(){const rows=[csvHeader],ids=prefecturesFor(catalog,state.region,state.pref,'environment',selected);for(const p of ids){const a=summarize(catalog,selected,{...state,pref:String(p)});rows.push(exportRow(effective(selected),a,'合計',a.area,catalog.prefectures[p-1]));for(const c of effective(selected).classes)rows.push(exportRow(effective(selected),a,catalog.classes[c],a.area==null?null:a.areas[c],catalog.prefectures[p-1]));}downloadFile('spider-habitat-prefectures-'+catalog.date,rows);}
@@ -183,7 +206,7 @@ async function init(){
     $('comparison-limit').title=`収録データで最大の属 ${capacity.genus}（${capacity.count}種）を基準にしています`;
     const params=new URLSearchParams(location.search);state.excludedClasses=excludedClasses(params.get('excludeCover')||'');
     spatial=await loadSpatial();
-    state.model=spatial?'distance':'cover';state.distance=[100,250,500].includes(Number(params.get('distance')))?Number(params.get('distance')):250;$('distance').value=state.distance;state.region=Object.keys(REGION_NAMES).includes(params.get('region'))?params.get('region'):'all';state.pref=/^(?:[1-9]|[1-3][0-9]|4[0-7])$/.test(params.get('pref')||'')?params.get('pref'):'';state.scope=params.get('scope')==='environment'?'environment':'recorded';
+    state.model=spatial?.profile.elevation?'elevation':spatial?'distance':'cover';state.distance=[100,250,500].includes(Number(params.get('distance')))?Number(params.get('distance')):250;$('distance').value=state.distance;state.region=Object.keys(REGION_NAMES).includes(params.get('region'))?params.get('region'):'all';state.pref=/^(?:[1-9]|[1-3][0-9]|4[0-7])$/.test(params.get('pref')||'')?params.get('pref'):'';state.scope=params.get('scope')==='environment'?'environment':'recorded';initElevation(params);
     selected=catalog.species.find(s=>s.id===params.get('species')&&s.environmentCount>0)||catalog.species.find(s=>s.name==='ワスレナグモ'&&s.environmentCount>0)||catalog.species.find(s=>effectiveSpeciesForSearch(s).classes.length);
     comparison=params.has('compare')?[...new Set(params.get('compare').split(',').filter(id=>byId(id)&&byId(id).environmentCount>0))].slice(0,comparisonLimit):[];
     if(spatial){
@@ -228,8 +251,8 @@ async function init(){
 async function initSlides(){
   if(slidesStarted)return;
   slidesStarted=true;
-  try{const response=await fetch('./slides/manifest.json');if(!response.ok)return;const deck=await response.json();if(deck.pages!==20)return;
-    let page=1;const show=()=>{$('presentation-slide').src=`./slides/page-${String(page).padStart(2,'0')}.png`;$('presentation-slide').alt=`発表資料 ${page}ページ目`;$('slide-page').textContent=`${page} / ${deck.pages}`;$('slide-rights-note').textContent=page===4?'引用図：右側の図は国立環境研究所（2020）図1。一般的なSDMが出現記録と環境情報を結ぶのに対し、本研究は図鑑の環境条件と広域記録から候補地を作る点が異なります。':([6,9,10,11,12].includes(page)?'標高を使った研究結果の図は、Web配信条件の確認待ちのため掲載を保留しています。':'');$('slide-prev').disabled=page===1;$('slide-next').disabled=page===deck.pages;};
+  try{const response=await fetch('./slides/manifest.json');if(!response.ok)return;const deck=await response.json();if(deck.pages!==20)return;if(deck.demFigures)$('presentation-rights-intro').textContent='標高を使った研究結果の図を掲載しています。';
+    let page=1;const show=()=>{$('presentation-slide').src=`./slides/page-${String(page).padStart(2,'0')}.png`;$('presentation-slide').alt=`発表資料 ${page}ページ目`;$('slide-page').textContent=`${page} / ${deck.pages}`;$('slide-rights-note').textContent=page===4?'引用図：右側の図は国立環境研究所（2020）図1。一般的なSDMが出現記録と環境情報を結ぶのに対し、本研究は図鑑の環境条件と広域記録から候補地を作る点が異なります。':([6,9,10,11,12].includes(page)?(deck.demFigures?'発表時の研究結果です。現在のWeb版とは計算方法が異なります。':'標高を使った研究結果の図は、Web配信条件の確認待ちのため掲載を保留しています。'):'');$('slide-prev').disabled=page===1;$('slide-next').disabled=page===deck.pages;};
     $('slide-prev').onclick=()=>{if(page>1){page--;show();}};$('slide-next').onclick=()=>{if(page<deck.pages){page++;show();}};$('presentation').hidden=false;show();
   }catch(error){console.error('発表資料を読み込めませんでした',error);}
 }

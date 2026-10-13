@@ -1,4 +1,5 @@
-import {PUBLICATION_POLICY,PUBLIC_SOURCES,PUBLIC_LICENSES,HELD_LAYERS,publicStratum} from './publication-policy.js';
+import {PUBLICATION_POLICY,PUBLIC_SOURCES,PUBLIC_LICENSES,HELD_LAYERS,publicStratum,publicationProfile,publicationRule,heldLayers} from './publication-policy.js';
+import {ELEVATION_STRATA,elevationThresholds} from './elevation.js';
 import {excludedClasses} from './model.js';
 import {readCompressed} from './map.js';
 import {SPATIAL_MODEL,STRATA,acceptedKeys,evaluateStrata,geoFeature,habitatMetadata} from './spatial-model.js';
@@ -12,9 +13,6 @@ async function json(name,limit,hash=false){
   const raw=await new Blob(chunks).arrayBuffer(),value=JSON.parse(new TextDecoder().decode(raw));
   return hash?{value,sha256:Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',raw)),v=>v.toString(16).padStart(2,'0')).join('')}:value;
 }
-const validStrata=f=>Array.isArray(f)&&f.length%2===0&&f.length<=STRATA*2&&f.every((v,i)=>Number.isSafeInteger(v)&&v>=0&&v<=(i%2?100000000:STRATA-1))&&f.every((v,i)=>i%2||i===0||v>f[i-2])&&f.every((v,i)=>i%2||publicStratum(v)===v);
-const validAreas=a=>a&&typeof a==='object'&&!Array.isArray(a)&&Object.keys(a).length<=STRATA&&Object.entries(a).every(([k,v])=>/^(?:0|[1-9]\d{0,6})$/.test(k)&&Number(k)<STRATA&&publicStratum(Number(k))===Number(k)&&Number.isFinite(v)&&v>0&&v<1000000);
-const validRows=(d,info,step)=>d?.schema===5&&d.step===step&&Array.isArray(d.cells)&&d.cells.length===info.cells&&d.cells.length<=20000&&d.cells.every(r=>Array.isArray(r)&&r.length===4&&Number.isInteger(r[0])&&r[0]>=6400&&r[0]<18000&&Number.isInteger(r[1])&&r[1]>=9600&&r[1]<25000&&Number.isInteger(r[2])&&r[2]>=1&&r[2]<=47&&validStrata(r[3]));
 function validInfo(info,prefix){const overview=prefix==='overview';return info&&/^[a-f0-9]{64}$/.test(info.sha256)&&info.file===prefix+'-'+info.sha256.slice(0,12)+'.json.gz'&&Number.isSafeInteger(info.bytes)&&info.bytes>0&&info.bytes<=(overview?48000000:16000000)&&Number.isSafeInteger(info.decodedBytes)&&info.decodedBytes>0&&info.decodedBytes<=(overview?128000000:32000000)&&Number.isInteger(info.cells)&&info.cells>0&&info.cells<=20000;}
 const intersects=(t,b)=>100+t.bounds[2]/320>=b.west&&100+t.bounds[0]/320<=b.east&&t.bounds[3]/480>=b.south&&t.bounds[1]/480<=b.north;
 export async function loadSpatial(){
@@ -27,10 +25,16 @@ export async function loadSpatial(){
     geographyInfo?readCompressed(base+(delivery?delivery.geography.file:'geography.json.gz'),geographyInfo):null,
   ]);
   if(!data)throw new Error('公開用データがありません');
-  if(data.schema!==5||data.model!==SPATIAL_MODEL||(data.localOnly!==false||data.publicationPolicy!==PUBLICATION_POLICY||data.dem!==false)||Object.keys(data.summary||{}).length!==47)throw new Error('追加データの形式が不正です');
+  const profile=publicationProfile(data,{allowLocalPreview:['127.0.0.1','localhost','[::1]'].includes(globalThis.location?.hostname)});
+  const strata=profile.elevation?ELEVATION_STRATA:STRATA,schema=profile.elevation?6:5;
+  const validKey=v=>Number.isInteger(v)&&v>=0&&v<strata&&publicStratum(v,profile)===v&&(!profile.elevation||(v&48)===0);
+  const validStrata=f=>Array.isArray(f)&&f.length%2===0&&f.length<=STRATA*2&&f.every((v,i)=>i%2?Number.isSafeInteger(v)&&v>0&&v<=100000000:validKey(v))&&f.every((v,i)=>i%2||i===0||v>f[i-2]);
+  const validAreas=a=>a&&typeof a==='object'&&!Array.isArray(a)&&Object.keys(a).length<=STRATA&&Object.entries(a).every(([k,v])=>/^(?:0|[1-9]\d{0,8})$/.test(k)&&validKey(Number(k))&&Number.isFinite(v)&&v>0&&v<1000000);
+  const validRows=(d,info,step)=>d?.schema===schema&&d.step===step&&Array.isArray(d.cells)&&d.cells.length===info.cells&&d.cells.length<=20000&&d.cells.every(r=>Array.isArray(r)&&r.length===4&&Number.isInteger(r[0])&&r[0]>=6400&&r[0]<18000&&Number.isInteger(r[1])&&r[1]>=9600&&r[1]<25000&&Number.isInteger(r[2])&&r[2]>=1&&r[2]<=47&&validStrata(r[3]));
+  if(data.schema!==schema||data.model!==(profile.elevation?'spatial-exploration-1.4.0':SPATIAL_MODEL)||Object.keys(data.summary||{}).length!==47)throw new Error('追加データの形式が不正です');
   for(let p=1;p<=47;p++){const r=data.summary[p];if(!r||!validAreas(r.areas)||!Number.isSafeInteger(r.meshes)||r.meshes<0)throw new Error('集計データが不正です');}
   for(const [id,rules] of Object.entries(data.rules||{})){if(!/^\d{1,5}$/.test(id)||!Array.isArray(rules)||rules.length>100)throw new Error('環境条件が不正です');for(const r of rules)if(!/^H\d{3,4}$/.test(r.id)||typeof r.label!=='string'||r.label.length>500||!Array.isArray(r.baseClasses)||r.baseClasses.some(c=>!Number.isInteger(c)||c<1||c>15)||!Array.isArray(r.classes)||r.classes.some(c=>!Number.isInteger(c)||c<1||c>15)||!Array.isArray(r.elevation)||r.elevation.some(c=>!Number.isInteger(c)||c<0||c>3)||typeof r.supported!=='boolean'||typeof r.edge!=='boolean'||typeof r.rice!=='boolean'||typeof r.river!=='boolean'||!Number.isInteger(r.vegetation)||r.vegetation<0||r.vegetation>5||!Array.isArray(r.limitations)||r.limitations.some(v=>typeof v!=='string'||v.length>500)||typeof r.coast!=='boolean'||typeof r.water!=='boolean'||typeof r.built!=='boolean'||!Array.isArray(r.pending)||r.pending.some(p=>typeof p!=='string'))throw new Error('環境条件が不正です');}
-  for(const rules of Object.values(data.rules))for(const r of rules)if(r.supported&&(r.coast||r.river))throw new Error('保留中の条件が有効です');
+  for(const rules of Object.values(data.rules))for(const r of rules)if(r.supported&&(publicationRule(r,profile).supported===false||(profile.elevation&&r.elevation.length<4&&r.elevationRequired!==true)))throw new Error('保留中または必須条件を省略した環境が有効です');
   if(geographyInfo){
     const g=geographyData;
     if(delivery)g.overview=[];
@@ -42,11 +46,11 @@ export async function loadSpatial(){
   let manifest,overview;const cache=new Map();
   const coarseRows=createDeliveryCache(async(info,signal)=>{
     const d=await readCompressed(base+info.file,{...info,signal});
-    if(d?.schema!==5||d.step!==64||!Array.isArray(d.cells)||d.cells.length!==info.cells||d.cells.some(r=>!Array.isArray(r)||![4,5].includes(r.length)||!Number.isInteger(r[0])||r[0]<6400||r[0]>=18000||!Number.isInteger(r[1])||r[1]<9600||r[1]>=25000||!Number.isInteger(r[2])||r[2]<1||r[2]>47||!validStrata(r[3])||(r.length===5&&data.geography?.regions[r[4]]?.pref!==r[2])))throw new Error('地域の広域図が不正です');
+    if(d?.schema!==schema||d.step!==64||!Array.isArray(d.cells)||d.cells.length!==info.cells||d.cells.some(r=>!Array.isArray(r)||![4,5].includes(r.length)||!Number.isInteger(r[0])||r[0]<6400||r[0]>=18000||!Number.isInteger(r[1])||r[1]<9600||r[1]>=25000||!Number.isInteger(r[2])||r[2]<1||r[2]>47||!validStrata(r[3])||(r.length===5&&data.geography?.regions[r[4]]?.pref!==r[2])))throw new Error('地域の広域図が不正です');
     return d.cells;
   });
   async function prepare(signal){
-    if(!manifest){const loaded=await json('manifest.json',3000000,true),next=loaded?.value;if(geographyInfo&&loaded?.sha256!==geographyInfo.sourceManifestSHA256)throw new Error('地域と地図データの版が一致しません');if(next?.schema!==5||next.model!==SPATIAL_MODEL||!Array.isArray(next.tiles)||next.tiles.length>5000||!validInfo(next.overview,'overview'))throw new Error('追加地図の形式が不正です');
+    if(!manifest){const loaded=await json('manifest.json',3000000,true),next=loaded?.value;if(geographyInfo&&loaded?.sha256!==geographyInfo.sourceManifestSHA256)throw new Error('地域と地図データの版が一致しません');if(next?.schema!==schema||next.model!==data.model||!Array.isArray(next.tiles)||next.tiles.length>5000||!validInfo(next.overview,'overview'))throw new Error('追加地図の形式が不正です');
       const ids=new Set();for(const t of next.tiles){if(!/^(?:hokkaido|tohoku|kanto|chubu|kinki|chugoku|shikoku|kyushu|okinawa)-\d{2,3}-\d{2,3}$/.test(t.id)||ids.has(t.id)||!validInfo(t,t.id)||!Array.isArray(t.bounds)||t.bounds.length!==4||t.bounds.some(v=>!Number.isInteger(v)||v<0||v>25000)||t.bounds[0]>=t.bounds[2]||t.bounds[1]>=t.bounds[3]||!Array.isArray(t.prefs)||t.prefs.some(p=>!Number.isInteger(p)||p<1||p>47))throw new Error('追加地図の範囲が不正です');ids.add(t.id);}manifest=next;
     }
   }
@@ -76,7 +80,7 @@ export async function loadSpatial(){
     await prepare(signal);const scope=recordScope(data.geography,species,prefs,settings.scope),needed=manifest.tiles.filter(t=>t.prefs.some(p=>prefs.includes(p))&&intersects(t,bounds)),mask=acceptedKeys(species,data.rules[species.id]||[],settings),features=[];
     if(needed.reduce((n,t)=>n+t.cells,0)>150000)throw new Error('範囲が広いため、地図を拡大してから保存してください。');
     for(let i=0;i<needed.length;i++){if(signal.aborted)throw new DOMException('Cancelled','AbortError');for(const row of await rows(needed[i],signal)){if(!includesRecordRow(scope,row)||!intersects({bounds:[row[0],row[1],row[0]+1,row[1]+1]},bounds))continue;const f=geoFeature(row,mask,species,settings,catalog);if(f){f.properties.record_region=row[4]?data.geography.regions[row[4]].names.join(' / '):null;features.push(f);}}if(features.length>50000)throw new Error('件数が多いため出力できません。対象条件を絞ってください。');onProgress(i+1,needed.length);await new Promise(r=>setTimeout(r,0));}
-    return {type:'FeatureCollection',name:'spider-habitat-candidates',metadata:{title:'日本産クモ類 生息候補地データベース',model:SPATIAL_MODEL,publication_policy:PUBLICATION_POLICY,record_geography:geographicNote(data.geography,scope),unresolved_islands:scope.unresolved,excluded_landcover_classes:excludedClasses(settings.excludedClasses),selected_habitats:habitatMetadata(species,data.rules[species.id]||[],settings),habitat_combination:'OR between habitats; AND within each habitat',elevation:settings.model==='elevation',crs:'OGC:CRS84 (longitude, latitude)',source:PUBLIC_SOURCES,license:PUBLIC_LICENSES,excluded_data:HELD_LAYERS,warning:'区画全体が生息地という意味ではありません。'},features};
+    return {type:'FeatureCollection',name:'spider-habitat-candidates',metadata:{title:'日本産クモ類 生息候補地データベース',model:data.model,publication_policy:data.publicationPolicy,record_geography:geographicNote(data.geography,scope),unresolved_islands:scope.unresolved,excluded_landcover_classes:excludedClasses(settings.excludedClasses),selected_habitats:habitatMetadata(species,data.rules[species.id]||[],settings),habitat_combination:'OR between habitats; AND within each habitat',elevation:profile.elevation,...(profile.elevation?{elevation_thresholds:elevationThresholds(settings),elevation_method:data.elevationMethod,elevation_approval:data.elevationApproval}:{}),crs:'OGC:CRS84 (longitude, latitude)',source:data.source||PUBLIC_SOURCES,license:data.license||PUBLIC_LICENSES,excluded_data:heldLayers(profile),warning:'区画全体が生息地という意味ではありません。'},features};
   }
   function scopeBounds(species,prefs,settings){
     const scope=recordScope(data.geography,species,prefs,settings.scope);
@@ -85,5 +89,5 @@ export async function loadSpatial(){
     return bs.length?[Math.min(...bs.map(b=>b[0])),Math.min(...bs.map(b=>b[1])),Math.max(...bs.map(b=>b[2])),Math.max(...bs.map(b=>b[3]))]:null;
   }
   await prepare();
-  return {data,mapCells,exportGeoJSON,scopeBounds};
+  return {data,profile,mapCells,exportGeoJSON,scopeBounds};
 }

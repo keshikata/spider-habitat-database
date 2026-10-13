@@ -45,7 +45,9 @@ def task(job):
     coast_lines = job[7] if len(job) > 7 else None
     compound = len(job) > 8 and job[8]
     references = job[9] if len(job) > 9 else None
+    altitude = bool(references and references.get('elevationStep') == 100)
     strata = 1572864 if references else 65536 if compound else 4096 if coast_lines is not None else 1024
+    if altitude: strata *= 32
     tile_id = f'{region}-{tx}-{ty}'
     cache = Path(output)/'cache'/f'{tile_id}.json'
     if cache.exists():
@@ -79,6 +81,10 @@ def task(job):
         eb=np.searchsorted([200.,800.],height,side='right').astype(np.uint8)
         eb[(~np.isfinite(height)) | (height == dem.nodata) | (height < -500) | (height > 9000)] = 3
         keys=core.astype(np.int32)*64+eb.astype(np.int32)*16+wb.astype(np.int32)*4+bb
+        if altitude:
+            bins=np.floor(np.clip(height,0,3000)/100).astype(np.int32)
+            bins[eb==3]=31
+            keys=core.astype(np.int32)*64+bins*1572864+wb.astype(np.int32)*4+bb
         if coast_lines is not None:
             from rasterio.features import rasterize
             from shapely import from_wkb
@@ -96,9 +102,12 @@ def task(job):
             from rasterio.features import rasterize
             from rasterio.windows import bounds, transform
             bounds_box=bounds(win,lc.transform)
-            rivers=gpd.read_file(Path(references['root'])/'rivers.fgb',bbox=bounds_box)
-            river_mask=rasterize([(g,1) for g in rivers.geometry],out_shape=cover.shape,transform=transform(win,lc.transform),fill=0,dtype='uint8',all_touched=True) if len(rivers) else np.zeros(cover.shape,dtype='uint8')
-            river_bins=distance_bins(river_mask,1,sampling)[halo:-halo,halo:-halo]
+            if references.get('excludeHeldDistances'):
+                river_bins=np.zeros(core.shape,dtype=np.uint8)
+            else:
+                rivers=gpd.read_file(Path(references['root'])/'rivers.fgb',bbox=bounds_box)
+                river_mask=rasterize([(g,1) for g in rivers.geometry],out_shape=cover.shape,transform=transform(win,lc.transform),fill=0,dtype='uint8',all_touched=True) if len(rivers) else np.zeros(cover.shape,dtype='uint8')
+                river_bins=distance_bins(river_mask,1,sampling)[halo:-halo,halo:-halo]
             vegetation=gpd.read_file(Path(references['root'])/(region+'-vegetation.fgb'),bbox=bounds_box)
             # Sorted category precedence makes any source polygon overlap deterministic.
             vegetation=vegetation.sort_values(['group','legend_nm'],kind='stable')
@@ -144,17 +153,26 @@ def task(job):
         gx,gy=x0*4+cx,y0*4+cy
         cells.append([gx,gy,p,flat]); meshes[str(p)]+=1
         ar=pixel_area_km2((gy+.5)/480)
-        if str(p) not in summary:summary[str(p)]=np.zeros(strata);coarse[str(p)]=np.zeros(strata,dtype=np.int64)
-        summary[str(p)][codes]+=values*ar;coarse[str(p)][codes]+=values
+        if altitude:
+            summary.setdefault(str(p),collections.Counter()).update({int(k):float(v)*ar for k,v in zip(codes,values)})
+            coarse.setdefault(str(p),collections.Counter()).update({int(k):int(v) for k,v in zip(codes,values)})
+        else:
+            if str(p) not in summary:summary[str(p)]=np.zeros(strata);coarse[str(p)]=np.zeros(strata,dtype=np.int64)
+            summary[str(p)][codes]+=values*ar;coarse[str(p)][codes]+=values
         b=bounds.setdefault(str(p),[gx,gy,gx+1,gy+1]); b[:]=[min(b[0],gx),min(b[1],gy),max(b[2],gx+1),max(b[3],gy+1)]
-    raw=json.dumps({'schema':5 if references else 4 if compound else 3 if coast_lines is not None else 2,'step':1,'cells':cells},separators=(',',':')).encode()
+    raw=json.dumps({'schema':6 if altitude else 5 if references else 4 if compound else 3 if coast_lines is not None else 2,'step':1,'cells':cells},separators=(',',':')).encode()
     packed=gzip.compress(raw,compresslevel=6,mtime=0); digest=hashlib.sha256(packed).hexdigest()
     if len(packed)>2000000 or len(raw)>12000000: raise ValueError('Tile budget exceeded')
     name=tile_id+'-'+digest[:12]+'.json.gz'; (Path(output)/name).write_bytes(packed)
     info={'id':tile_id,'file':name,'bytes':len(packed),'decodedBytes':len(raw),'sha256':digest,'cells':len(cells),
           'bounds':[x0*4,y0*4,(x0+STEP)*4,(y0+STEP)*4],'prefs':sorted(map(int,summary))}
-    result={'stamp':stamp,'info':info,'summary':{p:({str(int(k)):float(values[k]) for k in np.flatnonzero(values)} if compound else values.tolist()) for p,values in summary.items()},'meshes':dict(meshes),'bounds':bounds,
-            'coarse':[[x0*4,y0*4,int(p),np.column_stack([np.flatnonzero(v),v[v>0]]).ravel().tolist()] for p,v in coarse.items()]}
+    if altitude:
+        summary_rows={p:{str(k):v for k,v in sorted(values.items())} for p,values in summary.items()}
+        coarse_rows=[[x0*4,y0*4,int(p),[item for k,v in sorted(values.items()) for item in (k,v)]] for p,values in coarse.items()]
+    else:
+        summary_rows={p:({str(int(k)):float(values[k]) for k in np.flatnonzero(values)} if compound else values.tolist()) for p,values in summary.items()}
+        coarse_rows=[[x0*4,y0*4,int(p),np.column_stack([np.flatnonzero(v),v[v>0]]).ravel().tolist()] for p,v in coarse.items()]
+    result={'stamp':stamp,'info':info,'summary':summary_rows,'meshes':dict(meshes),'bounds':bounds,'coarse':coarse_rows}
     write(cache,result)
     return result
 

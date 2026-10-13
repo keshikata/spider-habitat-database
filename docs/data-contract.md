@@ -34,4 +34,10 @@
 
 ## 公開専用の配信契約（2026-10-08）
 
-公開用summaryは `localOnly:false`、`dem:false`、`publicationPolicy:public-without-dem-coast-river-2026-10-08` を必須とする。標高・海岸線距離・河川距離の集計ビットは除去し、海岸線・河川条件のある規則は `supported:false` と `publicationHold` を持つ。名称・規則の説明は検索可能だが、保留データを計算に使わない。`/data/spatial/` は公開用コピーだけを配信する。原本用の `/preview-data/` と `/preview-slides/` は配信しない。公開用成果物の作成手順は[公開前の確認](release-checklist.md)を参照。
+公開用summaryは `localOnly:false`、`dem:false`、`publicationPolicy:public-without-dem-coast-river-2026-10-09` を必須とする。標高・海岸線距離・河川距離の集計ビットは除去し、海岸線・河川条件のある規則は `supported:false` と `publicationHold` を持つ。名称・規則の説明は検索可能だが、保留データを計算に使わない。`/data/spatial/` は公開用コピーだけを配信する。原本用の `/preview-data/` と `/preview-slides/` は配信しない。公開用成果物の作成手順は[公開前の確認](release-checklist.md)を参照。
+
+## 標高を含む準備版（schema 6、未公開）
+
+`elevationStepM:100`、`strata:50331648`。キーは100m標高帯の番号×1572864＋土地被覆・使用可能な距離・植生の条件を表す。旧高さビットと海岸線・河川距離のビットはゼロ。帯0〜29は100m刻み、30は3000m以上、31は欠損。`elevationRequired` を持つ規則は選択した高さ条件を省略できない。
+
+ローカル確認用は `localOnly:true`、`dem:true`、`publicationPolicy:local-elevation-ready-2026-10-13` とする。一般配信は `localOnly:false`、`publicationPolicy:public-with-elevation-without-coast-river-2026-10-13` と、対象出力を確認した `elevationApproval` が必要。メソッド・標高帯・承認情報の形式は `publicationProfile` で照合する。元の100m帯の集計と、ユーザーが選んだ境界の200m・800m等の数値を区別し、保存結果へ両境界を保持する。

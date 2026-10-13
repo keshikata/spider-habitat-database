@@ -31,9 +31,9 @@ export function packSpatialDelivery(root){
   const prefectures={},regions={};
   for(let p=1;p<=47;p++){
     const cells=overview.cells.filter(r=>r[2]===p);
-    prefectures[p]={...pack('map-pref-'+p,{schema:5,step:64,cells}),cells:cells.length};
+    prefectures[p]={...pack('map-pref-'+p,{schema:manifest.schema,step:64,cells}),cells:cells.length};
     const rows=regionRows.filter(r=>r[2]===p);
-    regions[p]={...pack('map-region-'+p,{schema:5,step:64,cells:rows}),cells:rows.length};
+    regions[p]={...pack('map-region-'+p,{schema:manifest.schema,step:64,cells:rows}),cells:rows.length};
   }
   const result=validateDelivery({schema:1,sourceManifestSHA256,summary,geography:geographyIndex,prefectures,regions});
   // Publish the manifest last; every referenced file already exists and is immutable.

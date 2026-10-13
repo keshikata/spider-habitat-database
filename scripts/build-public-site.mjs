@@ -3,7 +3,7 @@ import path from 'node:path';
 import {gunzipSync} from 'node:zlib';
 import {createHash} from 'node:crypto';
 import {validateDelivery} from '../site/delivery.js';
-import {PUBLICATION_POLICY,publicStratum,publicationRule} from '../site/publication-policy.js';
+import {publicStratum,publicationRule,publicationProfile} from '../site/publication-policy.js';
 import {APPLICATION_ASSETS} from './public-assets.mjs';
 const out=path.resolve(process.argv[2]||'output/public-site'),spatial=path.resolve(process.argv[3]||'local/public-spatial'),slides=path.resolve(process.argv[4]||'local/public-presentation');
 if(fs.existsSync(out)&&fs.readdirSync(out).length)throw new Error('Output must be a new empty directory');
@@ -18,15 +18,17 @@ function verified(info){
   return JSON.parse(decoded);
 }
 const summary=verified(d.summary);
-if(summary.publicationPolicy!==PUBLICATION_POLICY||summary.dem!==false||summary.localOnly!==false)throw new Error('Research data must not be published');
+const profile=publicationProfile(summary,{allowLocalPreview:process.argv.includes('--local-preview')});
+if(profile.preview&&!out.startsWith(path.resolve('local')+path.sep))throw new Error('Pending elevation previews must stay under local/');
 if(createHash('sha256').update(fs.readFileSync(path.join(spatial,'manifest.json'))).digest('hex')!==d.sourceManifestSHA256)throw new Error('Manifest digest mismatch');
-const validAreas=areas=>Object.keys(areas).every(k=>publicStratum(+k)===+k);
-if(!Object.values(summary.summary).every(r=>validAreas(r.areas))||Object.values(summary.rules).flat().some(r=>r.supported&&publicationRule(r).supported===false))throw new Error('Held data or unevaluable habitat found');
+const validAreas=areas=>Object.keys(areas).every(k=>publicStratum(+k,profile)===+k&&(!profile.elevation||(+k&48)===0));
+if(!Object.values(summary.summary).every(r=>validAreas(r.areas))||Object.values(summary.rules).flat().some(r=>r.supported&&(publicationRule(r,profile).supported===false||(profile.elevation&&r.elevation.length<4&&!r.elevationRequired))))throw new Error('Held data or unevaluable habitat found');
 const g=verified(d.geography);if(!Object.values(g.regions).every(r=>validAreas(r.areas)))throw new Error('Held regional data found');
 const infos=[d.summary,d.geography,...Object.values(d.prefectures),...Object.values(d.regions),m.overview,...m.tiles];
-for(const info of infos){const value=verified(info);if(Array.isArray(value.cells)&&value.cells.some(r=>r[3].some((k,i)=>i%2===0&&publicStratum(k)!==k)))throw new Error('Held map data found');}
+for(const info of infos){const value=verified(info);if(Array.isArray(value.cells)&&value.cells.some(r=>r[3].some((k,i)=>i%2===0&&(publicStratum(k,profile)!==k||(profile.elevation&&(k&48)!==0)))))throw new Error('Held map data found');}
 const slideManifest=JSON.parse(fs.readFileSync(path.join(slides,'manifest.json')));
-if(slideManifest.edition!=='web-rights-reviewed-2026-10-08'||slideManifest.pages!==20)throw new Error('Unreviewed slide edition');
+if(!['web-rights-reviewed-2026-10-08','web-elevation-ready-2026-10-13'].includes(slideManifest.edition)||slideManifest.pages!==20)throw new Error('Unreviewed slide edition');
+if(slideManifest.demFigures&&(!profile.elevation||(!profile.preview&&slideManifest.elevationApproval?.receiptSHA256!==profile.approval.receiptSHA256)))throw new Error('Unapproved DEM figure edition');
 for(let n=1;n<=20;n++){
   const name=`page-${String(n).padStart(2,'0')}.png`,info=slideManifest.files?.[name],bytes=fs.readFileSync(path.join(slides,name));
   if(!info||info.bytes!==bytes.length||info.sha256!==createHash('sha256').update(bytes).digest('hex'))throw new Error('Slide differs from reviewed edition');

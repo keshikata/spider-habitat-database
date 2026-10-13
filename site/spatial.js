@@ -62,10 +62,11 @@ export async function loadSpatial(){
     if((zoom<11&&!(zoom>=8&&scope.regionIds.size&&!scope.fullPrefs.size))||needed.length>24){
       let source=[];
       if(delivery){
-        const jobs=[...scope.fullPrefs].map(p=>({info:delivery.prefectures[p],pref:p,regional:false}));
+        const visiblePrefs=new Set(needed.flatMap(t=>t.prefs));
+        const jobs=[...scope.fullPrefs].filter(p=>visiblePrefs.has(p)).map(p=>({info:delivery.prefectures[p],pref:p,regional:false}));
         const regionPrefs=new Set([...scope.regionIds].map(id=>data.geography.regions[id].pref));
-        for(const p of regionPrefs)jobs.push({info:delivery.regions[p],pref:p,regional:true});
-        let i=0;async function worker(){while(i<jobs.length){signal?.throwIfAborted();const job=jobs[i++],rows=await coarseRows(job.info,signal);if(rows.some(r=>r[2]!==job.pref||r.length!==(job.regional?5:4)))throw new Error('広域図の県が一致しません');source.push(...rows.filter(r=>!job.regional||scope.regionIds.has(String(r[4]))));}}
+        for(const p of regionPrefs)if(visiblePrefs.has(p))jobs.push({info:delivery.regions[p],pref:p,regional:true});
+        let i=0;async function worker(){while(i<jobs.length){signal?.throwIfAborted();const job=jobs[i++],rows=await coarseRows(job.info,signal);if(rows.some(r=>r[2]!==job.pref||r.length!==(job.regional?5:4)))throw new Error('広域図の県が一致しません');source.push(...rows.filter(r=>(!job.regional||scope.regionIds.has(String(r[4])))&&intersects({bounds:[r[0],r[1],r[0]+64,r[1]+64]},bounds)));}}
         await Promise.all([worker(),worker()]);
       }else{
         if(!overview){const next=await readCompressed(base+manifest.overview.file,{...manifest.overview,signal});if(!validRows(next,manifest.overview,64))throw new Error('広域データが不正です');overview=next;}

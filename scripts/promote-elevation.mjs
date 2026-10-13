@@ -15,10 +15,7 @@ export function promoteElevation({source,destination,slidesSource,slidesDestinat
   const manifest=read('manifest.json'),delivery=read('delivery-manifest.json');
   const manifestSHA=createHash('sha256').update(fs.readFileSync(path.join(source,'manifest.json'))).digest('hex');
   if(record.preparedManifestSHA256!==manifestSHA)throw new Error('Approval must be checked against the prepared input edition');
-  for(const directory of [destination,slidesDestination]){
-    if(fs.existsSync(directory)&&fs.readdirSync(directory).length)throw new Error('Use new empty promotion directories');
-    fs.mkdirSync(directory,{recursive:true});
-  }
+  for(const directory of [destination,slidesDestination])if(fs.existsSync(directory)&&fs.readdirSync(directory).length)throw new Error('Use new empty promotion directories');
   const infos=[delivery.summary,delivery.geography,...Object.values(delivery.prefectures),...Object.values(delivery.regions),manifest.overview,...manifest.tiles];
   const names=new Set(['manifest.json','delivery-manifest.json','geography.json.gz','geography-manifest.json',...infos.map(info=>info.file)]);
   for(const info of infos){
@@ -26,15 +23,20 @@ export function promoteElevation({source,destination,slidesSource,slidesDestinat
     const bytes=fs.readFileSync(path.join(source,info.file));
     if(bytes.length!==info.bytes||createHash('sha256').update(bytes).digest('hex')!==info.sha256)throw new Error('Prepared asset differs');
   }
+  const slides=JSON.parse(fs.readFileSync(path.join(slidesSource,'manifest.json')));
+  if(slides.edition!=='web-elevation-ready-2026-10-13'||slides.pages!==20)throw new Error('Prepared figure edition differs');
+  for(let n=1;n<=20;n++){
+    const name=`page-${String(n).padStart(2,'0')}.png`,bytes=fs.readFileSync(path.join(slidesSource,name)),info=slides.files?.[name];
+    if(!info||info.bytes!==bytes.length||info.sha256!==createHash('sha256').update(bytes).digest('hex'))throw new Error('Prepared figure differs');
+  }
+  // Validate the complete data and figure edition before producing any output.
+  for(const directory of [destination,slidesDestination])fs.mkdirSync(directory,{recursive:true});
   for(const name of names)fs.copyFileSync(path.join(source,name),path.join(destination,name));
   const updated={...summary,localOnly:false,publicationPolicy:ELEVATION_PUBLICATION_POLICY,elevationApproval:approval,source:PUBLIC_SOURCES+'; '+approval.attribution+'（国土地理院 基盤地図情報 数値標高モデル10mを加工）',license:PUBLIC_LICENSES+'; 標高：国土地理院使用承認 '+approval.number};
   publicationProfile(updated);fs.writeFileSync(path.join(destination,'summary.json'),JSON.stringify(updated)+'\n');
   packSpatialDelivery(destination);
-  const slides=JSON.parse(fs.readFileSync(path.join(slidesSource,'manifest.json')));
-  if(slides.edition!=='web-elevation-ready-2026-10-13'||slides.pages!==20)throw new Error('Prepared figure edition differs');
   for(let n=1;n<=20;n++){
     const name=`page-${String(n).padStart(2,'0')}.png`,bytes=fs.readFileSync(path.join(slidesSource,name)),info=slides.files[name];
-    if(info.bytes!==bytes.length||info.sha256!==createHash('sha256').update(bytes).digest('hex'))throw new Error('Prepared figure differs');
     fs.writeFileSync(path.join(slidesDestination,name),bytes);
   }
   fs.writeFileSync(path.join(slidesDestination,'manifest.json'),JSON.stringify({...slides,elevationApproval:approval})+'\n');

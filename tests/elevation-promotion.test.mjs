@@ -32,9 +32,16 @@ test('promotion verifies the receipt and frozen input before writing, then retai
     for(const invalid of [{...record,status:'pending'},{...record,receiptSHA256:'0'.repeat(64)},{...record,preparedManifestSHA256:'0'.repeat(64)},{...record,outputs:['web_map']}]){
       fs.writeFileSync(approvalPath,JSON.stringify(invalid));assert.throws(()=>promoteElevation(args));assert.equal(fs.existsSync(destination),false);
     }
-    fs.writeFileSync(approvalPath,JSON.stringify(record));promoteElevation(args);
+    fs.writeFileSync(approvalPath,JSON.stringify(record));
+    const figurePath=path.join(slides,'page-06.png'),originalFigure=fs.readFileSync(figurePath);
+    fs.writeFileSync(figurePath,'CHANGED FIGURE');assert.throws(()=>promoteElevation(args));assert.equal(fs.existsSync(destination),false);assert.equal(fs.existsSync(slidesDestination),false);
+    fs.writeFileSync(figurePath,originalFigure);
+    const delivery=JSON.parse(fs.readFileSync(path.join(prepared,'delivery-manifest.json'))),dataPath=path.join(prepared,delivery.summary.file),originalData=fs.readFileSync(dataPath);
+    fs.writeFileSync(dataPath,'CHANGED DATA');assert.throws(()=>promoteElevation(args));assert.equal(fs.existsSync(destination),false);
+    fs.writeFileSync(dataPath,originalData);promoteElevation(args);
     const approved=JSON.parse(fs.readFileSync(path.join(destination,'summary.json')));
     assert.equal(publicationProfile(approved).elevation,true);assert.equal(approved.localOnly,false);assert.equal(approved.elevationApproval.number,record.number);
+    assert.ok(approved.source.includes(record.attribution));assert.ok(approved.license.includes(record.number));
     assert.equal(Object.hasOwn(approved.elevationApproval,'privateApplicant'),false);assert.equal(Object.hasOwn(approved.elevationApproval,'receiptPath'),false);
     assert.equal(JSON.parse(fs.readFileSync(path.join(slidesDestination,'manifest.json'))).elevationApproval.receiptSHA256,record.receiptSHA256);
   }finally{fs.rmSync(root,{recursive:true,force:true});}

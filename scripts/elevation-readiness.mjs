@@ -20,6 +20,7 @@ export const ELEVATION_READINESS_INPUTS=[
   'local/elevation-ready-2026-10-13/area-reconciliation.json',
   'local/elevation-ready-2026-10-13/deployment-config.json',
   'local/elevation-ready-2026-10-13/ui-verification-20261018.json',
+  'local/elevation-ready-2026-10-13/preapplication-verification-20261018.json',
 ];
 
 // This verifies our tested local edition. It is never a GSI approval record.

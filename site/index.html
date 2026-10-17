@@ -42,6 +42,12 @@
 </nav>
 <div id="boot" role="status" class="boot">分類と環境データを読み込んでいます…</div>
 <main id="workspace" hidden>
+  <section id="search-entry" class="search-entry" aria-labelledby="search-title">
+    <div><h1 id="search-title">種を探す</h1><p id="catalog-count" class="note catalog-count"></p></div>
+    <label class="sr-only" for="search">和名・学名・科名で検索</label><div class="search-box"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="和名・学名・科名" autocomplete="off"></div>
+    <a class="result-jump" href="#selected-name">選択中の種へ ↓</a>
+  </section>
+  <details id="condition-controls" class="condition-disclosure"><summary><strong>地域・環境の条件</strong><span id="condition-summary"></span><span class="condition-edit" aria-hidden="true">変更</span></summary><div class="condition-content">
   <section class="scope-bar" aria-label="共通の集計条件">
     <div class="control"><label for="region">対象地域</label><select id="region"><option value="all">全国</option><option value="hokkaido">北海道</option><option value="tohoku">東北</option><option value="kanto">関東</option><option value="chubu">中部</option><option value="kinki">近畿</option><option value="chugoku">中国</option><option value="shikoku">四国</option><option value="kyushu">九州</option><option value="okinawa">沖縄</option></select></div>
     <div class="control"><label for="pref">都道府県</label><select id="pref"><option value="">すべての都道府県</option></select></div>
@@ -49,7 +55,7 @@
     <div class="control unit-control"><label for="unit">面積単位</label><select id="unit"><option value="km2">km²</option><option value="ha">ha</option></select></div>
   </section>
   <section id="analysis-controls" class="analysis-controls" aria-label="生息環境と検索条件" hidden>
-    <div class="habitat-control"><span id="habitat-label" class="control-label">生息環境を選択</span><details id="habitat-picker" class="species-picker habitat-picker"><summary id="habitat-choice" aria-labelledby="habitat-label habitat-choice">すべての生息環境</summary><div class="picker-panel"><label class="sr-only" for="habitat-search">環境名・条件で検索</label><input id="habitat-search" type="search" placeholder="環境名・条件で検索"><div class="habitat-actions"><button id="habitat-all" class="text-button">すべての環境に戻す</button><button id="habitat-current" class="text-button">選択中の種の環境を選択</button></div><div id="habitat-options"></div><p id="habitat-selection-note" class="note"></p></div></details></div>
+    <div class="habitat-control"><span id="habitat-label" class="control-label">生息環境を選択</span><details id="habitat-picker" class="species-picker habitat-picker"><summary id="habitat-choice" aria-labelledby="habitat-label habitat-choice">すべての生息環境</summary><div class="picker-panel"><div class="help-heading"><strong>生息環境を選択</strong><button id="habitat-close" type="button" class="help-close" aria-label="環境選択を閉じる">×</button></div><label class="sr-only" for="habitat-search">環境名・条件で検索</label><input id="habitat-search" type="search" placeholder="環境名・条件で検索"><div class="habitat-actions"><button id="habitat-all" class="text-button">すべての環境に戻す</button><button id="habitat-current" class="text-button">選択中の種の環境を選択</button></div><div id="habitat-options"></div><p id="habitat-selection-note" class="note"></p></div></details></div>
     <div class="control distance-control"><label for="distance">距離条件</label><select id="distance"><option value="100">100m以内</option><option value="250" selected>250m以内</option><option value="500">500m以内</option></select></div>
   </section>
   <section id="elevation-controls" class="elevation-controls" aria-labelledby="elevation-title" hidden>
@@ -59,21 +65,20 @@
     <button id="reset-elevation" class="text-button">初期値に戻す</button>
     <p id="elevation-range-note" class="note" role="status"></p>
   </section>
+  </div></details>
+  <div id="habitat-help-panels"></div>
   <div id="elevation-help" class="help-panel" popover aria-labelledby="elevation-help-title"><div class="help-heading"><h3 id="elevation-help-title">標高の基準</h3><button type="button" class="help-close" popovertarget="elevation-help" popovertargetaction="hide" aria-label="標高の補足を閉じる">×</button></div><p>生息環境にある「平地・低山地・山地」の記述を、選んだ標高の範囲で近似します。二つの境界の間を低山地側として扱います。地形や植生帯を確定する分類ではありません。</p><p>100m刻みで基準を変更できます。初期値は200m・800mです。地図・面積・比較・保存結果へ同じ基準を適用し、標高の欠損は高さの条件を必要とする候補に含めません。</p></div>
   <p id="elevation-preview-notice" class="notice local-preview-notice" hidden>標高機能の確認用です。国土地理院の承認待ちのため、一般公開はまだできません。</p>
   <div id="landcover-adjustment" class="landcover-notice" hidden><span id="landcover-adjustment-text"></span><button id="reset-common-landcover" class="text-button">土地被覆をすべて戻す</button></div>
   <section id="explore" class="view explore">
     <aside class="sidebar" aria-label="クモを選ぶ">
-      <div class="sidebar-heading"><h1>種を探す</h1></div><p id="catalog-count" class="note catalog-count"></p>
-      <label class="sr-only" for="search">和名・学名・科名で検索</label>
-      <div class="search-box"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="和名・学名・科名" autocomplete="off"></div>
-      <p id="search-count" class="search-count" aria-live="polite"></p>
+      <details id="species-results" class="search-results" open><summary><strong>検索結果</strong><span id="search-count" class="search-count" aria-live="polite"></span></summary>
       <div id="species-list" class="species-list" aria-label="検索結果"></div>
-
-      <div class="sidebar-bottom"><button class="text-button" data-view="methods">方法と出典</button></div>
+      <div id="search-empty-actions" class="search-empty-actions" hidden><button id="clear-habitat-search" class="secondary-button">環境条件を解除して検索</button><button id="clear-search" class="text-button">検索語を消す</button></div>
+      <div class="sidebar-bottom"><button class="text-button" data-view="methods">方法と出典</button></div></details>
     </aside>
     <div class="main-column">
-      <section class="species-heading" aria-labelledby="selected-name"><div><p id="selected-family" class="eyebrow"></p><h2 id="selected-name"></h2><p id="selected-scientific" class="scientific"></p><p id="taxonomy-note" class="note" hidden></p></div><button id="add-compare" class="secondary-button">比較に追加</button></section>
+      <section class="species-heading" aria-labelledby="selected-name"><div><p class="selected-label">選択中の種</p><p id="selected-family" class="eyebrow"></p><h2 id="selected-name" tabindex="-1"></h2><p id="selected-scientific" class="scientific"></p><p id="taxonomy-note" class="note" hidden></p></div><button id="add-compare" class="secondary-button">比較に追加</button></section>
       <div class="metrics" aria-live="polite">
         <div class="metric metric-primary"><span>条件に合う候補面積</span><strong id="area">—</strong><small>収録範囲内の概算</small></div>
         <div class="metric"><span>選択範囲の記録県</span><strong id="recorded-count">—</strong><small>記録は現在の生息確認ではありません</small></div>
@@ -82,7 +87,7 @@
       <details class="record-geography"><summary id="record-area-summary"></summary><p id="record-area-detail" class="note"></p></details>
       <p id="selected-habitats" class="note selected-habitats"></p>
       <div class="map-wrap">
-        <div class="map-toolbar"><div><strong>環境候補マップ</strong><span id="map-resolution">広域表示</span></div><div><label for="basemap" class="sr-only">背景地図</label><select id="basemap"><option value="blank" selected>背景なし</option><option value="pale">淡色地図</option></select><button id="fit-map" class="small-button">対象範囲へ</button></div></div>
+        <div class="map-toolbar"><div><strong>環境候補マップ</strong><span id="map-resolution">広域表示</span></div><div><label for="basemap" class="sr-only">背景地図</label><select id="basemap"><option value="blank" selected>背景なし</option><option value="pale">淡色地図</option></select></div></div>
         <div id="map" aria-label="生息環境の条件に合う候補地図"></div>
         <div id="map-status" class="map-status" role="status"></div>
         <div class="map-legend"><span>メッシュ内の該当画素の割合</span><i class="legend-one"></i><span>0超～10%</span><i class="legend-two"></i><span>10～30%</span><i class="legend-three"></i><span>30%以上</span></div>
@@ -106,8 +111,8 @@
   <section id="guide" class="view methods-view" hidden>
     <h1>使い方</h1>
     <p class="lead">種と生息環境を選び、調査候補の地図と面積を確認します。</p>
-    <article><h2>1. 調べる地域と種を選ぶ</h2><p>「地図で探す」で対象地域・都道府県を選び、種の検索欄に和名・学名・科名を入力します。「記録のある地域に限定」は既知の本土・島・県別記録の範囲、「全地域の環境だけで比較」は分布記録に関係なく選択した地域を対象にします。</p><button class="secondary-button" data-view="explore">地図で探す</button></article>
-    <article><h2>2. 生息環境を選ぶ</h2><p>上部の「生息環境を選択」を開き、環境名で検索してチェックします。環境名の下に、実際に使う土地被覆と距離条件が表示されます。たとえば「水辺の草地」は、草地であることと水域から選択した距離以内にあることを両方満たす場所です。</p><p>距離は100m・250m・500mから選びます。現在は土地被覆・距離・植生図を使って計算します。<span data-elevation-copy="guide">標高条件は未実装のため、平地・低山地・山地など高さの限定が必要な環境は計算を保留しています。将来の対応を予定しています。</span>複数の環境にチェックすると、いずれかに合う場所を重複なく集計します。選択した環境をもつ種だけが検索・比較の候補に残ります。実際の環境を別の条件で近似している場合は、その限界も表示します。保留・未評価の環境も選んで種を検索できますが、その環境の地図・面積は計算しません。対応状況は「方法と出典」の一覧で確認できます。</p><p>「すべての環境に戻す」は各種の登録環境すべてを使い、最後のチェックを外すと環境未選択になります。狭い条件の変化を見たいときは、その環境だけを選んでください。</p><p>地図の下の「対象にする土地被覆」では、森林の種類や草地などを個別にオン・オフできます。例えば森林のうち常緑広葉樹林だけを残して候補を比べられます。距離・植生の条件は保たれ、変更は他の種の比較・保存にも共通で適用されます。「すべて戻す」で元の対象に戻ります。</p></article>
+    <article><h2>1. 調べる地域と種を選ぶ</h2><p>「地図で探す」の検索欄に和名・学名・科名を入力します。「地域・環境の条件」を開くと、対象地域・都道府県や生息環境、距離を変更できます。「記録のある地域に限定」は既知の本土・島・県別記録の範囲、「全地域の環境だけで比較」は分布記録に関係なく選択した地域を対象にします。</p><button class="secondary-button" data-view="explore">地図で探す</button></article>
+    <article><h2>2. 生息環境を選ぶ</h2><p>「地域・環境の条件」の「生息環境を選択」を開き、環境名で検索してチェックします。環境名の下に条件の概要が表示されます。各環境の「補足」ボタンで、使う土地被覆と条件の限界を確認できます。たとえば「水辺の草地」は、草地であることと水域から選択した距離以内にあることを両方満たす場所です。</p><p>距離は100m・250m・500mから選びます。現在は土地被覆・距離・植生図を使って計算します。<span data-elevation-copy="guide">標高条件は未実装のため、平地・低山地・山地など高さの限定が必要な環境は計算を保留しています。将来の対応を予定しています。</span>複数の環境にチェックすると、いずれかに合う場所を重複なく集計します。選択した環境をもつ種だけが検索・比較の候補に残ります。実際の環境を別の条件で近似している場合は、その限界も表示します。保留・未評価の環境も選んで種を検索できますが、その環境の地図・面積は計算しません。対応状況は「方法と出典」の一覧で確認できます。</p><p>「すべての環境に戻す」は各種の登録環境すべてを使い、最後のチェックを外すと環境未選択になります。狭い条件の変化を見たいときは、その環境だけを選んでください。</p><p>地図の下の「対象にする土地被覆」では、森林の種類や草地などを個別にオン・オフできます。例えば森林のうち常緑広葉樹林だけを残して候補を比べられます。距離・植生の条件は保たれ、変更は他の種の比較・保存にも共通で適用されます。「すべて戻す」で元の対象に戻ります。</p></article>
     <article><h2>3. 地図を動かして結果を見る</h2><p>地図はドラッグで移動し、＋・－で拡大縮小します。「候補範囲へ」で対象地域へ戻り、「全国へ」で全国を表示します。候補の表示切替と地図の拡大表示も使えます。拡大した地図はEscキーで元に戻せます。</p><p>区画をクリックすると、条件に合う画素の割合や面積を確認できます。色のついた区画全体が生息地であることを示すものではありません。</p></article>
     <article><h2>4. 種を比べる・結果を保存する</h2><p>種の横の「比較に追加」から最大<span data-comparison-limit></span>種を比較できます。「面積・環境を比較」では種名や属で候補を絞れます。比較にも上部の地域・生息環境・距離条件が適用されます。</p><p>「データ出力」から環境別・県別のCSVを保存できます。GeoJSONは地図に表示している範囲を保存します。計算条件と出典も出力に含まれます。</p><button class="secondary-button" data-view="compare">面積・環境を比較</button></article>
   </section>
@@ -137,7 +142,7 @@
     <article><h2>お問い合わせ</h2><p>種の扱い、環境条件、データの誤りに関するご連絡は、<a href="mailto:ryotahidakaac@gmail.com">ryotahidakaac@gmail.com</a>へお願いします。対象の種や、気づいた点をお知らせください。</p><p><a href="https://www.researchgate.net/profile/Ryota-Hidaka">ResearchGateプロフィール</a></p></article>
   </section>
   <section id="updates" class="view methods-view" hidden><h1>更新履歴</h1><article id="elevation-update" hidden><h2>標高の基準を変更できるようになりました</h2><p>平地側と山地側の境界を100m刻みで選び、地図・面積・比較・保存結果に反映できます。高さの条件を必要とする環境の計算に対応しました。文献の環境記述を標高で近似するため、地域ごとの地形や植生帯の分類とは異なります。</p></article><article><h2>2026年10月9日 — 高さの条件を必要とする環境の修正</h2><p>山地・低山地・平地などの環境を、高さで限定せず広い森林や草地として集計していた問題を修正しました。標高条件を判定できるまでは、その環境の地図・面積の計算を保留します。環境名での種検索は引き続き利用できます。</p></article><article><h2>2026年10月8日 — 初回リリース</h2><p>日本産クモ類の生息候補地を、地図と面積で調べられるデータベースです。種・地域・生息環境を選び、候補地の確認、種どうしの比較、CSV・GeoJSONの保存ができます。</p></article></section>
-  <section id="export" class="view methods-view" hidden><h1>集計データを保存</h1><p class="lead">選択した種・地域・分布条件で集計した結果をCSV形式で保存できます。</p><p id="export-scope" class="notice"></p><div class="export-actions"><button id="export-selected" class="secondary-button">選択中の種の環境別面積</button><button id="export-comparison" class="secondary-button">比較中の種の環境別面積</button><button id="export-prefectures" class="secondary-button">選択中の種の県別面積</button></div><p>CSVには和名・学名、対象範囲、面積の単位、データの参照日、使用・除外した土地被覆、出典と利用条件を含みます。保留・未評価の環境や記録県がない場合は、面積ゼロと区別して出力します。保留中のデータの数値は含みません。</p><article id="gis-export"><h2>GISで使う候補区画を保存</h2><p>「地図で探す」で拡大した表示範囲を、経度・緯度のGeoJSON（約250mのポリゴン）として保存します。候補面積・環境画素の割合・計算条件・出典を含み、QGISなどで読めます。区画全体を生息地の境界として扱わないでください。</p><button id="export-geojson" class="secondary-button">地図の表示範囲をGeoJSONで保存</button> <button id="cancel-geojson" class="text-button" hidden>中止</button><p id="geojson-status" role="status" class="note"></p><p class="note">範囲が広すぎて保存できない場合は、地図を拡大してからもう一度保存してください。</p></article><article><h2>利用条件</h2><p>土地被覆の加工データは<a href="https://earth.jaxa.jp/ja/data/policy/">JAXAの利用条件</a>、行政区域に基づく情報は<a href="https://creativecommons.org/licenses/by/4.0/deed.ja">CC BY 4.0</a>、<a href="https://wsc.nmbe.ch/dataresources">World Spider Catalog (2026), Natural History Museum Bern</a> に基づき編集した分類対応情報は<a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a>に従います。出典を付してご利用ください。JSCの分類・分布記録は、出典と本サイトで加工した旨を記して利用しています。植生に基づく情報はCC BY 4.0です。<span data-elevation-copy="exports">標高・海岸線距離・河川距離のデータは配布しません。</span>素材ごとの詳細は「方法と出典」に記載しています。</p></article></section>
+  <section id="export" class="view methods-view" hidden><h1>集計データを保存</h1><p class="lead">選択した種・地域・分布条件で集計した結果をCSV形式で保存できます。</p><p id="export-scope" class="notice"></p><div class="export-actions"><button id="export-selected" class="secondary-button">選択中の種の環境別面積をCSVで保存</button><button id="export-comparison" class="secondary-button">比較中の種の環境別面積をCSVで保存</button><button id="export-prefectures" class="secondary-button">選択中の種の県別面積をCSVで保存</button></div><p>CSVには和名・学名、対象範囲、面積の単位、データの参照日、使用・除外した土地被覆、出典と利用条件を含みます。保留・未評価の環境や記録県がない場合は、面積ゼロと区別して出力します。保留中のデータの数値は含みません。</p><article id="gis-export"><h2>GISで使う候補区画を保存</h2><p>「地図で探す」で拡大した表示範囲を、経度・緯度のGeoJSON（約250mのポリゴン）として保存します。候補面積・環境画素の割合・計算条件・出典を含み、QGISなどで読めます。区画全体を生息地の境界として扱わないでください。</p><p id="export-bounds" class="notice"></p><button id="choose-export-area" class="secondary-button">地図で保存範囲を選ぶ</button> <button id="export-geojson" class="secondary-button">地図の表示範囲をGeoJSONで保存</button> <button id="cancel-geojson" class="text-button" hidden>中止</button><p id="geojson-status" role="status" class="note"></p><p class="note">範囲が広すぎて保存できない場合は、地図を拡大してからもう一度保存してください。</p></article><article><h2>利用条件</h2><p>土地被覆の加工データは<a href="https://earth.jaxa.jp/ja/data/policy/">JAXAの利用条件</a>、行政区域に基づく情報は<a href="https://creativecommons.org/licenses/by/4.0/deed.ja">CC BY 4.0</a>、<a href="https://wsc.nmbe.ch/dataresources">World Spider Catalog (2026), Natural History Museum Bern</a> に基づき編集した分類対応情報は<a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a>に従います。出典を付してご利用ください。JSCの分類・分布記録は、出典と本サイトで加工した旨を記して利用しています。植生に基づく情報はCC BY 4.0です。<span data-elevation-copy="exports">標高・海岸線距離・河川距離のデータは配布しません。</span>素材ごとの詳細は「方法と出典」に記載しています。</p></article></section>
 
 </main>
 <footer><span>© 2026 日本産クモ類 生息候補地データベース</span></footer>

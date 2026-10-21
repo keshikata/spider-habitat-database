@@ -1,6 +1,7 @@
 import {prefecturesFor,pixelArea,includedClasses,excludedClasses} from './model.js';
 import {recordScope,scopedSummaries} from './record-geography.js';
 import {elevationMask,elevationThresholds,ELEVATION_MISSING,ELEVATION_STRIDE} from './elevation.js';
+import {queryMask} from './query-model.js';
 export const SPATIAL_MODEL='spatial-exploration-1.3.0';
 export const STRATA=1572864;
 const maskCache=new Map(),baseCache=new Map(),rowCache=new WeakMap();
@@ -26,7 +27,7 @@ export function acceptedKeys(species,rules,settings){
   if(limit<0)throw new Error('Invalid distance');
   for(let vegetation=0;vegetation<6;vegetation++)for(let river=0;river<4;river++){
     const eligible=active.filter(r=>(!r.river||river<=limit)&&(!r.vegetation||vegetation===r.vegetation));
-    const baseKey=JSON.stringify([settings.model,limit,cover,eligible.map(r=>[r.classes,r.edge,r.rice,r.coast,r.water,r.built,r.elevation,r.elevationRequired])]);
+    const baseKey=JSON.stringify([settings.model,limit,cover,(settings.model==='cover'?active:eligible).map(r=>[r.classes,r.edge,r.rice,r.coast,r.water,r.built,r.elevation,r.elevationRequired])]);
     let base=baseCache.get(baseKey);
     if(!base){
       base=new Uint8Array(65536);
@@ -52,14 +53,14 @@ export function effectiveSpecies(data,s,settings){
   return {...s,classes,publicationHoldCount:rules.filter(r=>r.publicationHold?.length).length,availableClassCount:available.length,pending:[...new Set(pending)],mappedEnvironmentCount:rules.filter(r=>r.supported!==false&&includedClasses(settings.model==='cover'?(r.baseClasses??r.classes):r.classes,settings).length).length,selectedEnvironmentCount:rules.length};
 }
 export function summarizeSpatial(catalog,data,s,settings){
-  const prefs=prefecturesFor(catalog,settings.region,settings.pref,settings.scope,s),mask=acceptedKeys(s,data.rules[s.id]||[],settings),areas=Array(16).fill(0);
+  const query=data.querySummary?.(s.id,settings),prefs=prefecturesFor(catalog,settings.region,settings.pref,settings.scope,s),mask=query?queryMask(query,data.rules[s.id]||[],s,settings):acceptedKeys(s,data.rules[s.id]||[],settings),areas=Array(16).fill(0);
   let meshes=0,total=0,missing=0,elevationMissing=0;
-  const geography=recordScope(data.geography,s,prefs,settings.scope),rows=scopedSummaries(data,geography);
+  const geography=recordScope(data.geography,s,prefs,settings.scope),rows=query?(query.aggregate?[query.aggregate]:[...geography.fullPrefs].map(p=>query.summary[p]).concat([...geography.regionIds].map(id=>query.regions[id]))):scopedSummaries(data,geography),matches=mask.matches??(key=>mask[key]);
   for(const row of rows){
-    let cached=rowCache.get(row);
+    let cached=query?.habitats.length?row.queryAreas:rowCache.get(row);
     if(!cached){const entries=Object.entries(row.areas);cached={keys:Uint32Array.from(entries,([k])=>Number(k)),values:Float64Array.from(entries,([,v])=>v),total:0,missing:0,elevationMissing:0};for(let i=0;i<cached.keys.length;i++){const k=cached.keys[i],a=cached.values[i];cached.total+=a;if(k%1024<64)cached.missing+=a;if(data.schema===6?Math.floor(k/ELEVATION_STRIDE)===ELEVATION_MISSING:Math.floor(k/16)%4===3)cached.elevationMissing+=a;}rowCache.set(row,cached);}
-    meshes+=row.meshes;total+=cached.total;missing+=cached.missing;elevationMissing+=cached.elevationMissing;
-    for(let i=0;i<cached.keys.length;i++){const k=cached.keys[i];if(mask[k])areas[Math.floor(k%1024/64)]+=cached.values[i];}
+    meshes+=row.meshes;total+=query?row.total:cached.total;missing+=query?row.missing:cached.missing;elevationMissing+=query?row.elevationMissing:cached.elevationMissing;
+    for(let i=0;i<cached.keys.length;i++){const k=cached.keys[i];if(matches(k))areas[query?k%16:Math.floor(k%1024/64)]+=cached.values[i];}
   }
   const mapped=mask.some(Boolean);
   const empty=Array.isArray(settings.habitats?.[s.id])&&!settings.habitats[s.id].length;
@@ -68,8 +69,8 @@ export function summarizeSpatial(catalog,data,s,settings){
   return {area:mapped&&prefs.length&&rows.length?areas.reduce((a,b)=>a+b,0):null,status:empty?'no_environment':noLandcover?'no_landcover':!mapped?'unmapped':!prefs.length?'no_scope':!rows.length?'no_geography':geography.unresolved.length?'partial_geography':excludedHabitats.length?'partial_environment':'evaluated',excludedHabitats,geography,areas,prefs,meshes,total,missing,elevationMissing,records:prefs.reduce((n,p)=>n+(Number(s.records[p])||0),0)};
 }
 export function evaluateStrata(flat,mask){
-  let total=0,matching=0;const counts=Array(16).fill(0),matched=Array(16).fill(0);
-  for(let i=0;i<flat.length;i+=2){const k=flat[i],n=flat[i+1],c=Math.floor(k%1024/64);total+=n;counts[c]+=n;if(mask[k]){matching+=n;matched[c]+=n;}}
+  let total=0,matching=0;const counts=Array(16).fill(0),matched=Array(16).fill(0),matches=mask.matches??(key=>mask[key]);
+  for(let i=0;i<flat.length;i+=2){const k=flat[i],n=flat[i+1],c=Math.floor(k%1024/64);total+=n;counts[c]+=n;if(matches(k)){matching+=n;matched[c]+=n;}}
   return {counts,matched,total,matching,ratio:total?matching/total:0};
 }
 export function geoFeature(row,mask,s,settings,catalog){

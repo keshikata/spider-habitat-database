@@ -102,3 +102,7 @@ input:focus,select:focus{border-color:var(--focus);outline:2px solid var(--focus
 /* Keep the approved source visible within normal and expanded maps. */
 #map .leaflet-control-attribution{max-width:min(650px,calc(100vw - 60px));white-space:normal;overflow-wrap:anywhere;line-height:1.45;padding:2px 5px;background:#ffffffed}
 @media print{.map-wrap{break-inside:avoid}#map .leaflet-control-attribution{display:block!important;color:#162e43!important;background:#fff!important}}
+
+/* Group guide text by the control the reader is using. */
+#guide h3{font-size:.9375rem;line-height:1.6;margin:24px 0 10px;color:var(--ink)}
+#map .leaflet-control-attribution a{text-decoration:underline;text-underline-offset:2px}

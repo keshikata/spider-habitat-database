@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
-import {gzipSync} from 'node:zlib';
+import {gzipSync,gunzipSync} from 'node:zlib';
 import {preparePublicSpatial} from '../scripts/prepare-public-spatial.mjs';
 import {promoteElevation} from '../scripts/promote-elevation.mjs';
 import {publicationProfile,ELEVATION_OUTPUTS} from '../site/publication-policy.js';
@@ -20,7 +20,8 @@ test('promotion verifies the receipt and frozen input before writing, then retai
     const overview={...packed('overview',{schema:6,step:64,cells:[]}),cells:0};
     write('manifest.json',{schema:6,model:'spatial-exploration-1.4.0',tiles:[],overview});
     const manifestSHA=sha(fs.readFileSync(path.join(source,'manifest.json')));
-    write('summary.json',{schema:6,model:'spatial-exploration-1.4.0',date:'2026-10-13',elevationStepM:100,rules:{},summary:{},bounds:{},cells:0});
+    const rule={id:'H001',label:'テスト森林',classes:[6],baseClasses:[6],elevation:[2],supported:true,edge:false,rice:false,river:false,coast:false,water:false,built:false,vegetation:0,pending:[],limitations:[]};
+    write('summary.json',{schema:6,model:'spatial-exploration-1.4.0',date:'2026-10-13',elevationStepM:100,rules:{1:[rule]},summary:{1:{meshes:1,areas:{[8*1572864+6*64]:1}}},bounds:{},cells:0});
     const geo=packed('geography',{schema:1,sourceManifestSHA256:manifestSHA,regions:{},tiles:{},mainland:{},islands:{},overview:[]});
     fs.renameSync(path.join(source,geo.file),path.join(source,'geography.json.gz'));write('geography-manifest.json',geo);
     preparePublicSpatial(source,prepared,{elevationPreview:true});
@@ -43,6 +44,10 @@ test('promotion verifies the receipt and frozen input before writing, then retai
     assert.equal(publicationProfile(approved).elevation,true);assert.equal(approved.localOnly,false);assert.equal(approved.elevationApproval.number,record.number);
     assert.ok(approved.source.includes(record.attribution));assert.ok(approved.license.includes(record.number));
     assert.equal(Object.hasOwn(approved.elevationApproval,'privateApplicant'),false);assert.equal(Object.hasOwn(approved.elevationApproval,'receiptPath'),false);
+    const promotedDelivery=JSON.parse(fs.readFileSync(path.join(destination,'delivery-manifest.json')));
+    assert.deepEqual(promotedDelivery.query.groups,delivery.query.groups,'promotion reuses the exact verified numeric query files');
+    const queryMetadata=JSON.parse(gunzipSync(fs.readFileSync(path.join(destination,promotedDelivery.query.metadata.file))));
+    assert.equal(queryMetadata.elevationApproval.number,record.number);assert.equal(queryMetadata.localOnly,false);
     assert.equal(JSON.parse(fs.readFileSync(path.join(slidesDestination,'manifest.json'))).elevationApproval.receiptSHA256,record.receiptSHA256);
   }finally{fs.rmSync(root,{recursive:true,force:true});}
 });

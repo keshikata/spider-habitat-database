@@ -13,7 +13,8 @@ const delivery=JSON.parse(fs.readFileSync(path.join(root,'data/spatial/delivery-
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'data/spatial/manifest.json')));
 const hash=b=>createHash('sha256').update(b).digest('hex');
 const checked=[];
-const spatial=[delivery.summary,delivery.geography,delivery.prefectures['43'],manifest.overview,manifest.tiles[0]].filter(Boolean).map(i=>'data/spatial/'+i.file);
+const firstQuery=Object.values(delivery.query?.groups||{})[0];
+const spatial=[delivery.summary,delivery.geography,delivery.prefectures['43'],manifest.overview,manifest.tiles[0],delivery.query?.metadata,delivery.query?.geography,delivery.query?.runs,firstQuery?.summary,firstQuery?.map,firstQuery?.index,firstQuery?.national,Object.values(delivery.query?.recorded||{})[0]].filter(Boolean).map(i=>'data/spatial/'+i.file);
 const names=[...APPLICATION_ASSETS.filter(n=>n!=='_headers'),'data/search.json.gz','data/taxonomy-crosswalk.json','data/spatial/delivery-manifest.json','data/spatial/manifest.json',...spatial,'slides/manifest.json','slides/page-01.png','slides/page-06.png','slides/page-20.png'];
 const required={'x-content-type-options':'nosniff','referrer-policy':'no-referrer','x-frame-options':'DENY','cross-origin-opener-policy':'same-origin','cross-origin-resource-policy':'same-origin'};
 const headers=fs.readFileSync(path.join(root,'_headers'),'utf8');

@@ -33,6 +33,17 @@ test('unconstrained alternative habitats can retain missing heights without inve
   assert.equal(mask[missing],1);assert.equal(mask[key(100)],1);
   const flat=[key(800),5,missing,11];assert.equal(evaluateStrata(flat,mask).matching,16);
 });
+test('numeric elevation lookup agrees with indexed lookup across every height and landcover, with distance and vegetation bits',()=>{
+  for(const mountainMin of [500,800,1000,3000]){
+    const mask=acceptedKeys(species,[mountain],{...settings,mountainMin});
+    for(let bin=0;bin<32;bin++)for(let c=0;c<16;c++)for(const extra of [0,1,4,4096,16384,262144,1310720]){
+      const k=bin*ELEVATION_STRIDE+c*64+extra;
+      assert.equal(mask.matches(k),mask[k]);
+    }
+    for(const k of [-1,0.5,NaN,Infinity,ELEVATION_STRATA,Number.MAX_SAFE_INTEGER])assert.equal(mask.matches(k),0);
+    assert.equal(evaluateStrata([key(800),5,missing,11],mask).matching,mountainMin<=800?5:0);
+  }
+});
 test('summary and exported polygons use the selected thresholds and the same candidate counts',()=>{
   const data={schema:6,rules:{1:[mountain]},summary:{1:{meshes:2,areas:{[key(500)]:2,[key(800)]:5,[missing]:11}}}},catalog={prefectures:['北海道'],regions:{hokkaido:[1]}};
   assert.equal(summarizeSpatial(catalog,data,species,settings).area,5);

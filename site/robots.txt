@@ -1,2 +1,3 @@
 User-agent: *
 Allow: /
+Sitemap: https://spider-habitat-atlas.pages.dev/sitemap.xml

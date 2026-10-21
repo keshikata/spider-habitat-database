@@ -23,10 +23,14 @@ export function scopedSummaries(data, scope) {
   return [...scope.fullPrefs].map(p => data.summary[p]).concat(
     [...scope.regionIds].map(id => data.geography.regions[id]));
 }
-export function attachRegions(rows, runs) {
+export function validateRegionRuns(runs,length) {
   if (!Array.isArray(runs) || !runs.length || runs[0][0] !== 0 ||
-      runs.some((r,i) => r.length !== 2 || !Number.isSafeInteger(r[0]) || r[0] < 0 || r[0] >= rows.length ||
+      runs.some((r,i) => r.length !== 2 || !Number.isSafeInteger(r[0]) || r[0] < 0 || r[0] >= length ||
         !Number.isSafeInteger(r[1]) || r[1] < 0 || (i > 0 && r[0] <= runs[i-1][0]))) throw new Error('地域区分データが不正です');
+  return runs;
+}
+export function attachRegions(rows, runs) {
+  validateRegionRuns(runs,rows.length);
   let current = 0;
   return rows.map((row, i) => {
     while (current + 1 < runs.length && runs[current + 1][0] <= i) current++;

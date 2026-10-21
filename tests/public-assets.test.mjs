@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {checkPublicPaths,verifyAssetDigest} from '../scripts/public-assets.mjs';
 import {createHash} from 'node:crypto';
+import {checkSharing} from '../scripts/check-sharing.mjs';
 
 test('reviewed image verification rejects absent metadata and changed content',()=>{
   const buffer=Buffer.from('reviewed image'),info={bytes:buffer.length,sha256:createHash('sha256').update(buffer).digest('hex')};
@@ -36,4 +37,13 @@ test('public caching has one policy per asset and only versioned spatial files a
   function caches(url){return rules.filter(r=>new RegExp('^'+r.pattern.split('*').map(s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('.*')+'$').test(url)).flatMap(r=>r.cache);}
   assert.deepEqual(caches('/data/spatial/map-pref-1-abcdef123456.json.gz'),['public, max-age=31536000, immutable']);
   for(const url of ['/data/search.json.gz','/data/spatial/manifest.json','/data/spatial/delivery-manifest.json'])assert.deepEqual(caches(url),['public, max-age=0, must-revalidate']);
+});
+
+test('search discovery permits the canonical sitemap and rejects an unrelated destination',async t=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'spider-discovery-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+  for(const name of ['index.html','ogp-2026-10-09-v2.png','robots.txt','sitemap.xml'])await fs.copyFile(new URL('../site/'+name,import.meta.url),path.join(root,name));
+  assert.doesNotThrow(()=>checkSharing(root));
+  const sitemap=await fs.readFile(path.join(root,'sitemap.xml'),'utf8');
+  await fs.writeFile(path.join(root,'sitemap.xml'),sitemap.replace('https://spider-habitat-atlas.pages.dev/','https://unrelated.example/'));
+  assert.throws(()=>checkSharing(root));
 });

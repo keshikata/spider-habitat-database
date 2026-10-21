@@ -135,3 +135,9 @@ node scripts/check-deployment.mjs https://spider-habitat-atlas.pages.dev/ output
 - 承認書の対象がWeb地図・集計JSON・CSV・GeoJSON・資料図版を含むことと、指定表示を確認して公開する。地図内の承認表示は拡大中にも常時見えることを本番で確認する。
 - [国土地理院の成果品提出案内](https://www.gsi.go.jp/LAW/2930-seika.html)に従い、承認部署へ公開URL等を報告する。承認番号が見える画面も保存する。汎用地図データベースに関する条件が付く場合は個別製品一覧等も承認書に従って提出する。ローカルに報告文案を用意したが、送信はまだ行っていない。
 - 標高版は集計JSON約10.16MB・地域索引約11.81MBを含む。上の初期容量約6.31MBは標高を保留した公開版の値であり、標高版へ流用しない。実機・モバイル回線で初回読み込み、再訪、保存、メモリー使用量を測る。
+
+## 2026-10-19：検索とアクセス解析
+
+Search Consoleの所有権をHTMLタグで確認し、サイトマップを送信。無料のCloudflare Web Analyticsを追加した。公開版は `output/release-2026-10-19-measurement/`、版URLは https://ee412865.spider-habitat-atlas.pages.dev/ 。2,410ファイル・334,321,045 bytes、識別値 `2ab53e7dc329e8071ea7c4780e47c744b33cf65b4860cd2865d9a13a5a0cce5d`。計算・データ・資料2,405ファイルは前版と同一。
+
+JavaScript58件、33配信ファイルのハッシュ・HTTPS・ヘッダー、実計測先のHTTP204を確認。Cookie0、検索語とURLクエリのテスト文字列の送信なし。公開版の標高は保留を維持。承認待ち版にも同じ設定を引き継いだ。Googleのサイトマップ処理状態と運用上の注意は[検索と計測の設定](site-measurement.md)と作業記録を参照。

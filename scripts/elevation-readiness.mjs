@@ -11,6 +11,7 @@ export const ELEVATION_READINESS_INPUTS=[
   'scripts/build-public-site.mjs','scripts/check-public-site.mjs','scripts/check-public-spatial.mjs',
   'scripts/check-deployment.mjs','scripts/check-sharing.mjs',
   'scripts/pack-spatial-delivery.mjs','scripts/public-assets.mjs','scripts/serve-elevation-preview.mjs','scripts/serve.mjs',
+  'scripts/pack-query-delivery.mjs','scripts/check-query-delivery.mjs',
   'local/elevation-delivery-ready-2026-10-13/manifest.json',
   'local/elevation-delivery-ready-2026-10-13/delivery-manifest.json',
   'local/elevation-delivery-ready-2026-10-13/summary.json',
@@ -21,6 +22,10 @@ export const ELEVATION_READINESS_INPUTS=[
   'local/elevation-ready-2026-10-13/deployment-config.json',
   'local/elevation-ready-2026-10-13/ui-verification-20261018.json',
   'local/elevation-ready-2026-10-13/preapplication-verification-20261018.json',
+  'local/elevation-ready-2026-10-13/final-verification-20261018.json',
+  'local/elevation-ready-2026-10-13/lazy-verification-20261018.json',
+  'local/elevation-ready-2026-10-13/copy-design-verification-20261019.json',
+  'local/elevation-ready-2026-10-13/measurement-verification-20261019.json',
 ];
 
 // This verifies our tested local edition. It is never a GSI approval record.

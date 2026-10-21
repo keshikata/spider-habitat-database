@@ -29,6 +29,12 @@ export function checkSharing(root){
   const width=image.readUInt32BE(16),height=image.readUInt32BE(20);
   assert.equal(width,1200);assert.equal(height,630);
   assert.equal(tags.get('og:image:type'),'image/png');assert.equal(tags.get('og:image:width'),String(width));assert.equal(tags.get('og:image:height'),String(height));
-  assert.match(fs.readFileSync(path.join(root,'robots.txt'),'utf8'),/^User-agent: \*\r?\nAllow: \/\s*$/);
+  const robots=fs.readFileSync(path.join(root,'robots.txt'),'utf8');
+  assert.match(robots,/^User-agent: \*\r?\nAllow: \/(?:\r?\nSitemap: https:\/\/spider-habitat-atlas\.pages\.dev\/sitemap\.xml)?\s*$/);
+  if(robots.includes('Sitemap:')){
+    const sitemap=fs.readFileSync(path.join(root,'sitemap.xml'),'utf8');
+    assert.match(sitemap,/<urlset xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9">/);
+    assert.deepEqual([...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m=>m[1]),[origin]);
+  }
   return {image:imagePath,width,height,bytes:image.length,staticMetadata:'passed'};
 }

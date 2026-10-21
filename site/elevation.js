@@ -29,13 +29,13 @@ export function elevationMask(base,settings){
   let masks=cache.get(base);if(!masks){masks=new Map();cache.set(base,masks);}
   if(masks.has(signature))return masks.get(signature);
   const mappedBands=Array.from({length:32},(_,bin)=>bin===ELEVATION_MISSING?3:bin*ELEVATION_STEP<thresholds.lowlandMax?0:bin*ELEVATION_STEP<thresholds.mountainMin?1:2);
-  const target={length:ELEVATION_STRATA,some:callback=>base.some(callback)};
+  // Numeric consumers avoid a Proxy/string/regex round trip for every pixel key.
+  const matches=key=>Number.isSafeInteger(key)&&key>=0&&key<ELEVATION_STRATA?base[key%ELEVATION_STRIDE+mappedBands[Math.floor(key/ELEVATION_STRIDE)]*16]:0;
+  const target={length:ELEVATION_STRATA,some:callback=>base.some(callback),matches};
   const mask=new Proxy(target,{get(object,property){
     if(typeof property!=='string'||!/^\d+$/.test(property))return object[property];
     const key=Number(property);
-    if(!Number.isSafeInteger(key)||key<0||key>=ELEVATION_STRATA)return 0;
-    const legacy=key%ELEVATION_STRIDE+mappedBands[Math.floor(key/ELEVATION_STRIDE)]*16;
-    return base[legacy];
+    return matches(key);
   }});
   masks.set(signature,mask);while(masks.size>12)masks.delete(masks.keys().next().value);
   return mask;

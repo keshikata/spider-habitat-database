@@ -24,7 +24,7 @@ const validCell=(x,y,counts)=>Number.isInteger(x)&&x>=1600&&x<=4400&&Number.isIn
 const bounds=(x,y,step)=>({x,y,west:100+x/80,east:100+(x+step)/80,south:y/120,north:(y+step)/120});
 
 export function createHabitatMap(catalog, formatArea, unit){
-  const $=id=>document.getElementById(id),m=L.map('map',{zoomControl:true,preferCanvas:true,minZoom:4,maxZoom:14,zoomAnimation:false}).setView([36.5,137.5],5);
+  const $=id=>document.getElementById(id),m=L.map('map',{zoomControl:true,preferCanvas:true,minZoom:4,maxZoom:14,zoomAnimation:false,trackResize:false}).setView([36.5,137.5],5);
   const tile=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png',{maxZoom:18,referrerPolicy:'no-referrer',attribution:'<a href="https://maps.gsi.go.jp/development/ichiran.html">地理院タイル</a>'});
   // Locally rendered place names give orientation without requesting background tiles.
   const places=[['北海道',43.2,142.5],['東北',39.4,140.8],['関東',36.3,139.5],['中部',36.2,137.4],['近畿',34.7,135.7],['中国',34.9,132.6],['四国',33.6,133.5],['九州',32.5,130.8],['沖縄',26.3,127.8]];
@@ -83,6 +83,6 @@ export function createHabitatMap(catalog, formatArea, unit){
   }
   async function render(options){latestOptions=options;spatial=options.spatial;settings=options.settings;updateElevationCredit(spatial?.profile);species=options.species;prefs=options.prefs;const own=++version;controller?.abort();controller=new AbortController();layer.setCells([],1);m.closePopup();if(!species.classes.length||!prefs.length){ready=false;$('map-status').textContent=!species.classes.length?(species.availableClassCount?'対象の土地被覆がすべてオフです。ボタンをオンにすると候補を表示します。':species.publicationHoldCount?'選択した生息環境は計算保留です。「方法と出典」で理由を確認できます。':'選択した生息環境は、現在のデータでは判定できません。'):'選択範囲にこの種の県別記録はありません。';return;}$('map-status').textContent='環境候補を読み込んでいます…';try{await prepare(controller.signal,Boolean(spatial));if(own!==version)return;ready=true;if(options.fit){ready=false;fit();ready=true;}await update();}catch(error){if(error.name!=='AbortError'&&own===version){retry();console.error(error);}}}
   m.on('moveend',update);
-  new ResizeObserver(()=>{if($('map').clientWidth&&$('map').clientHeight)m.invalidateSize({pan:false});}).observe($('map'));
+  new ResizeObserver(()=>{if($('map').clientWidth&&$('map').clientHeight)m.invalidateSize({animate:false});}).observe($('map'));
   return {render,fit,bounds(){const b=m.getBounds();return {west:b.getWest(),east:b.getEast(),south:b.getSouth(),north:b.getNorth()};},resize(){m.invalidateSize();layer.redraw();},closePopup(){m.closePopup();},suspend(){ready=false;version++;controller?.abort();},setBasemap(value){value==='pale'?tile.addTo(m):m.removeLayer(tile);refreshPlaceLabels();}};
 }

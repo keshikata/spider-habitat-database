@@ -7,7 +7,7 @@ import {pipeline} from 'node:stream';
 import {fileURLToPath} from 'node:url';
 const siteRoot=fileURLToPath(new URL('../site/',import.meta.url));
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.txt':'text/plain; charset=utf-8','.gz':'application/gzip'};
-const previewPath=/^\/data\/spatial\/(?:summary\.json|manifest\.json|delivery-manifest\.json|geography-manifest\.json|geography\.json\.gz|(?:summary|geography-index|map-pref-[1-9][0-9]?|map-region-[1-9][0-9]?|overview|(?:hokkaido|tohoku|kanto|chubu|kinki|chugoku|shikoku|kyushu|okinawa)-\d{2,3}-\d{2,3})-[a-f0-9]{12}\.json\.gz)$/;
+const previewPath=/^\/data\/spatial\/(?:summary\.json|manifest\.json|delivery-manifest\.json|geography-manifest\.json|geography\.json\.gz|(?:query-(?:metadata|geography|runs|(?:summary|map|index|national)-[a-f0-9]{12}|record-\d{1,5}|pref-[a-f0-9]{12}-[1-9][0-9]?)|summary|geography-index|map-pref-[1-9][0-9]?|map-region-[1-9][0-9]?|overview|(?:hokkaido|tohoku|kanto|chubu|kinki|chugoku|shikoku|kyushu|okinawa)-\d{2,3}-\d{2,3})-[a-f0-9]{12}\.json\.gz)$/;
 
 export function createPreviewServer({root=siteRoot,previewRoot=fs.existsSync(path.join(root,'data/spatial'))?path.join(root,'data/spatial'):path.resolve(root,'../local/public-spatial'),slidesRoot=fs.existsSync(path.join(root,'slides'))?path.join(root,'slides'):path.resolve(root,'../local/public-presentation'),strictCSP=false}={}){
   root=fs.realpathSync(root);

@@ -3,8 +3,10 @@ import {ELEVATION_STRATA,elevationThresholds} from './elevation.js';
 import {excludedClasses} from './model.js';
 import {readCompressed} from './map.js';
 import {SPATIAL_MODEL,STRATA,acceptedKeys,evaluateStrata,geoFeature,habitatMetadata} from './spatial-model.js';
-import {recordScope,includesRecordRow,attachRegions,geographicNote} from './record-geography.js';
+import {recordScope,includesRecordRow,attachRegions,geographicNote,validateRegionRuns} from './record-geography.js';
 import {validateDelivery,createDeliveryCache} from './delivery.js';
+import {createQueryDelivery} from './query-delivery.js';
+import {queryMask} from './query-model.js';
 const base='./data/spatial/';
 async function json(name,limit,hash=false){
   const r=await fetch(base+name,{credentials:'same-origin'});if(r.status===404)return null;if(!r.ok)throw new Error('追加データを取得できません');
@@ -15,33 +17,55 @@ async function json(name,limit,hash=false){
 }
 function validInfo(info,prefix){const overview=prefix==='overview';return info&&/^[a-f0-9]{64}$/.test(info.sha256)&&info.file===prefix+'-'+info.sha256.slice(0,12)+'.json.gz'&&Number.isSafeInteger(info.bytes)&&info.bytes>0&&info.bytes<=(overview?48000000:16000000)&&Number.isSafeInteger(info.decodedBytes)&&info.decodedBytes>0&&info.decodedBytes<=(overview?128000000:32000000)&&Number.isInteger(info.cells)&&info.cells>0&&info.cells<=20000;}
 const intersects=(t,b)=>100+t.bounds[2]/320>=b.west&&100+t.bounds[0]/320<=b.east&&t.bounds[3]/480>=b.south&&t.bounds[1]/480<=b.north;
-export async function loadSpatial(){
-  const deliveryInfo=await json('delivery-manifest.json',40000),delivery=deliveryInfo?validateDelivery(deliveryInfo):null;
-  const geographyInfo=delivery?{...delivery.geography,schema:1,sourceManifestSHA256:delivery.sourceManifestSHA256}:await json('geography-manifest.json',2000);
+export async function loadSpatial(catalog){
+  const deliveryInfo=await json('delivery-manifest.json',2000000),delivery=deliveryInfo?validateDelivery(deliveryInfo):null,queryInfo=delivery?.query;
+  const geographyInfo=delivery?{...(queryInfo?.geography||delivery.geography),schema:1,sourceManifestSHA256:delivery.sourceManifestSHA256}:await json('geography-manifest.json',2000);
   if(geographyInfo&&(geographyInfo.schema!==1||!/^[a-f0-9]{64}$/.test(geographyInfo.sha256)||!/^[a-f0-9]{64}$/.test(geographyInfo.sourceManifestSHA256)))throw new Error('地域データの情報が不正です');
   // Independent validated assets can load together; no map tiles are fetched here.
   const [data,geographyData]=await Promise.all([
-    delivery?readCompressed(base+delivery.summary.file,delivery.summary):json('summary.json',64000000),
-    geographyInfo?readCompressed(base+(delivery?delivery.geography.file:'geography.json.gz'),geographyInfo):null,
+    delivery?readCompressed(base+(queryInfo?.metadata||delivery.summary).file,queryInfo?.metadata||delivery.summary):json('summary.json',64000000),
+    geographyInfo?readCompressed(base+(delivery?geographyInfo.file:'geography.json.gz'),geographyInfo):null,
   ]);
   if(!data)throw new Error('公開用データがありません');
   const profile=publicationProfile(data,{allowLocalPreview:['127.0.0.1','localhost','[::1]'].includes(globalThis.location?.hostname)});
   const strata=profile.elevation?ELEVATION_STRATA:STRATA,schema=profile.elevation?6:5;
   const validKey=v=>Number.isInteger(v)&&v>=0&&v<strata&&publicStratum(v,profile)===v&&(!profile.elevation||(v&48)===0);
   const validStrata=f=>Array.isArray(f)&&f.length%2===0&&f.length<=STRATA*2&&f.every((v,i)=>i%2?Number.isSafeInteger(v)&&v>0&&v<=100000000:validKey(v))&&f.every((v,i)=>i%2||i===0||v>f[i-2]);
-  const validAreas=a=>a&&typeof a==='object'&&!Array.isArray(a)&&Object.keys(a).length<=STRATA&&Object.entries(a).every(([k,v])=>/^(?:0|[1-9]\d{0,8})$/.test(k)&&validKey(Number(k))&&Number.isFinite(v)&&v>0&&v<1000000);
+  const validAreas=a=>{
+    if(!a||typeof a!=='object'||Array.isArray(a))return false;
+    const keys=Object.keys(a);if(keys.length>STRATA)return false;
+    // Avoid materializing an extra [key,value] array for each area entry.
+    for(const k of keys){const v=a[k];if(!/^(?:0|[1-9]\d{0,8})$/.test(k)||!validKey(Number(k))||!Number.isFinite(v)||v<=0||v>=1000000)return false;}
+    return true;
+  };
+  const validTotals=r=>!queryInfo||[r.total,r.missing,r.elevationMissing].every(v=>Number.isFinite(v)&&v>=0&&v<10000000)&&r.missing<=r.total&&r.elevationMissing<=r.total;
+  let validationStart=performance.now();
+  const yieldValidation=async()=>{if(performance.now()-validationStart<16)return;await new Promise(resolve=>setTimeout(resolve,0));validationStart=performance.now();};
   const validRows=(d,info,step)=>d?.schema===schema&&d.step===step&&Array.isArray(d.cells)&&d.cells.length===info.cells&&d.cells.length<=20000&&d.cells.every(r=>Array.isArray(r)&&r.length===4&&Number.isInteger(r[0])&&r[0]>=6400&&r[0]<18000&&Number.isInteger(r[1])&&r[1]>=9600&&r[1]<25000&&Number.isInteger(r[2])&&r[2]>=1&&r[2]<=47&&validStrata(r[3]));
   if(data.schema!==schema||data.model!==(profile.elevation?'spatial-exploration-1.4.0':SPATIAL_MODEL)||Object.keys(data.summary||{}).length!==47)throw new Error('追加データの形式が不正です');
-  for(let p=1;p<=47;p++){const r=data.summary[p];if(!r||!validAreas(r.areas)||!Number.isSafeInteger(r.meshes)||r.meshes<0)throw new Error('集計データが不正です');}
+  for(let p=1;p<=47;p++){const r=data.summary[p];if(!r||!validAreas(r.areas)||!validTotals(r)||!Number.isSafeInteger(r.meshes)||r.meshes<0)throw new Error('集計データが不正です');await yieldValidation();}
   for(const [id,rules] of Object.entries(data.rules||{})){if(!/^\d{1,5}$/.test(id)||!Array.isArray(rules)||rules.length>100)throw new Error('環境条件が不正です');for(const r of rules)if(!/^H\d{3,4}$/.test(r.id)||typeof r.label!=='string'||r.label.length>500||!Array.isArray(r.baseClasses)||r.baseClasses.some(c=>!Number.isInteger(c)||c<1||c>15)||!Array.isArray(r.classes)||r.classes.some(c=>!Number.isInteger(c)||c<1||c>15)||!Array.isArray(r.elevation)||r.elevation.some(c=>!Number.isInteger(c)||c<0||c>3)||typeof r.supported!=='boolean'||typeof r.edge!=='boolean'||typeof r.rice!=='boolean'||typeof r.river!=='boolean'||!Number.isInteger(r.vegetation)||r.vegetation<0||r.vegetation>5||!Array.isArray(r.limitations)||r.limitations.some(v=>typeof v!=='string'||v.length>500)||typeof r.coast!=='boolean'||typeof r.water!=='boolean'||typeof r.built!=='boolean'||!Array.isArray(r.pending)||r.pending.some(p=>typeof p!=='string'))throw new Error('環境条件が不正です');}
   for(const rules of Object.values(data.rules))for(const r of rules)if(r.supported&&(publicationRule(r,profile).supported===false||(profile.elevation&&r.elevation.length<4&&r.elevationRequired!==true)))throw new Error('保留中または必須条件を省略した環境が有効です');
   if(geographyInfo){
     const g=geographyData;
     if(delivery)g.overview=[];
     if(g.schema!==1||g.sourceManifestSHA256!==geographyInfo.sourceManifestSHA256||!g.regions||Object.keys(g.regions).length>1000||!Array.isArray(g.overview)||g.overview.length>30000)throw new Error('地域データが不正です');
-    for(const [id,r] of Object.entries(g.regions))if(!/^\d{1,6}$/.test(id)||!Number.isInteger(r.pref)||r.pref<1||r.pref>47||!validAreas(r.areas)||!Number.isSafeInteger(r.meshes)||r.meshes<0||r.bounds?.length!==4||r.bounds.some(v=>!Number.isFinite(v))||r.bounds[0]<120||r.bounds[2]>155||r.bounds[1]<20||r.bounds[3]>46)throw new Error('地域集計が不正です');
+    for(const [id,r] of Object.entries(g.regions)){if(!/^\d{1,6}$/.test(id)||!Number.isInteger(r.pref)||r.pref<1||r.pref>47||!validAreas(r.areas)||!validTotals(r)||!Number.isSafeInteger(r.meshes)||r.meshes<0||r.bounds?.length!==4||r.bounds.some(v=>!Number.isFinite(v))||r.bounds[0]<120||r.bounds[2]>155||r.bounds[1]<20||r.bounds[3]>46)throw new Error('地域集計が不正です');await yieldValidation();}
     if(g.overview.some(r=>r.length!==5||!Number.isInteger(r[0])||!Number.isInteger(r[1])||!g.regions[r[4]]||g.regions[r[4]].pref!==r[2]||!validStrata(r[3])))throw new Error('地域の広域図が不正です');
     data.geography=g;
+  }
+  let queries;
+  if(queryInfo){
+    for(const [id,rules] of Object.entries(data.rules)){const group=queryInfo.species[id],active=rules.filter(r=>r.supported).map(r=>r.id).sort();if(!Object.hasOwn(queryInfo.species,id)||JSON.stringify(group?queryInfo.groups[group].habitats:[])!==JSON.stringify(active))throw new Error('種と条件別データが一致しません');}
+    let verifiedCatalog=false;if(catalog&&queryInfo.catalogSHA256){const bytes=new TextEncoder().encode(JSON.stringify(catalog)),digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),v=>v.toString(16).padStart(2,'0')).join('');if(digest!==queryInfo.catalogSHA256)throw new Error('分類と集計範囲の版が一致しません');verifiedCatalog=true;}
+    queries=createQueryDelivery(queryInfo,data,(info,signal)=>readCompressed(base+info.file,{...info,signal}),delivery.sourceManifestSHA256,verifiedCatalog);
+    data.querySummary=queries.summaryFor;
+  }
+  let runsPending;
+  async function prepareRegions(signal){
+    if(!queryInfo||Object.keys(data.geography.tiles).length)return;
+    if(!runsPending)runsPending=(async()=>{const r=await readCompressed(base+queryInfo.runs.file,queryInfo.runs);if(r?.schema!==1||r.sourceManifestSHA256!==delivery.sourceManifestSHA256||!r.tiles||Object.keys(r.tiles).length>5000||Object.keys(r.tiles).some(id=>!/^(?:hokkaido|tohoku|kanto|chubu|kinki|chugoku|shikoku|kyushu|okinawa)-\d{2,3}-\d{2,3}$/.test(id)))throw new Error('地域の対応表が不正です');data.geography.tiles=r.tiles;})().catch(error=>{runsPending=null;throw error;});
+    await runsPending;signal?.throwIfAborted();
   }
   let manifest,overview;const cache=new Map();
   const coarseRows=createDeliveryCache(async(info,signal)=>{
@@ -54,12 +78,23 @@ export async function loadSpatial(){
       const ids=new Set();for(const t of next.tiles){if(!/^(?:hokkaido|tohoku|kanto|chubu|kinki|chugoku|shikoku|kyushu|okinawa)-\d{2,3}-\d{2,3}$/.test(t.id)||ids.has(t.id)||!validInfo(t,t.id)||!Array.isArray(t.bounds)||t.bounds.length!==4||t.bounds.some(v=>!Number.isInteger(v)||v<0||v>25000)||t.bounds[0]>=t.bounds[2]||t.bounds[1]>=t.bounds[3]||!Array.isArray(t.prefs)||t.prefs.some(p=>!Number.isInteger(p)||p<1||p>47))throw new Error('追加地図の範囲が不正です');ids.add(t.id);}manifest=next;
     }
   }
-  async function rows(t,signal){let d=cache.get(t.id);if(!d){d=await readCompressed(base+t.file,{...t,signal});if(!validRows(d,t,1))throw new Error('250mデータが不正です');if(data.geography){d.cells=attachRegions(d.cells,data.geography.tiles[t.id]);if(d.cells.some(r=>r[4]&&data.geography.regions[r[4]]?.pref!==r[2]))throw new Error('地域と県の対応が不正です');}signal?.throwIfAborted();cache.set(t.id,d);while(cache.size>8)cache.delete(cache.keys().next().value);}return d.cells;}
+  async function rows(t,signal){let d=cache.get(t.id);if(!d){await prepareRegions(signal);d=await readCompressed(base+t.file,{...t,signal});if(!validRows(d,t,1))throw new Error('250mデータが不正です');if(data.geography){d.cells=attachRegions(d.cells,data.geography.tiles[t.id]);if(d.cells.some(r=>r[4]&&data.geography.regions[r[4]]?.pref!==r[2]))throw new Error('地域と県の対応が不正です');}signal?.throwIfAborted();cache.set(t.id,d);while(cache.size>8)cache.delete(cache.keys().next().value);}return d.cells;}
+  function regionalTiles(tiles,scope){return !data.geography?tiles:tiles.filter(t=>{
+    if(t.prefs.some(p=>scope.fullPrefs.has(p)))return true;
+    const runs=validateRegionRuns(data.geography.tiles[t.id],t.cells);
+    if(runs.some(r=>r[1]&&!data.geography.regions[r[1]]))throw new Error('地域の対応表が不正です');
+    return runs.some(r=>scope.regionIds.has(String(r[1])));
+  });}
   function converted(rows,prefs,mask,step){const set=new Set(prefs),groups=new Map();for(const row of rows){const [x,y,p,flat]=row;if(!set.has(p))continue;const v=evaluateStrata(flat,mask),key=x+','+y;const old=groups.get(key);if(old){old.matching+=v.matching;old.total+=v.total;if(!old.prefs.includes(p))old.prefs.push(p);for(let c=0;c<16;c++)old.counts[c]+=v.counts[c];}else groups.set(key,{x:x/4,y:y/4,west:100+x/320,east:100+(x+step)/320,south:y/480,north:(y+step)/480,counts:v.counts,matching:v.matching,total:v.total,prefs:[p]});}return [...groups.values()].map(cell=>({...cell,prefs:cell.prefs.sort((a,b)=>a-b)}));}
   async function mapCells({bounds,zoom,prefs,species,settings,signal}){
-    await prepare(signal);const mask=acceptedKeys(species,data.rules[species.id]||[],settings),scope=recordScope(data.geography,species,prefs,settings.scope);
+    await prepare(signal);const mask=queries?null:acceptedKeys(species,data.rules[species.id]||[],settings),scope=recordScope(data.geography,species,prefs,settings.scope);
     const needed=manifest.tiles.filter(t=>t.prefs.some(p=>prefs.includes(p))&&intersects(t,bounds));
     if((zoom<11&&!(zoom>=8&&scope.regionIds.size&&!scope.fullPrefs.size))||needed.length>24){
+      if(queries){
+        const visible=new Set(needed.flatMap(t=>t.prefs)),scoped=new Set([...scope.fullPrefs,...[...scope.regionIds].map(id=>data.geography.regions[id].pref)]),packed=await queries.mapFor(species.id,[...scoped].filter(p=>visible.has(p)),signal),mask=packed&&queryMask(packed,data.rules[species.id]||[],species,settings),groups=new Map();
+        for(const r of packed?.cells||[]){signal?.throwIfAborted();const[x,y,p,id,counts,flat]=r;if(!(id?scope.regionIds.has(String(id)):scope.fullPrefs.has(p))||!intersects({bounds:[x,y,x+64,y+64]},bounds))continue;let matching=0;for(let i=0;i<flat.length;i+=2)if(mask.matches(flat[i]))matching+=flat[i+1];const key=x+','+y,old=groups.get(key);if(old){old.matching+=matching;old.total+=counts.reduce((a,b)=>a+b,0);if(!old.prefs.includes(p))old.prefs.push(p);for(let c=0;c<16;c++)old.counts[c]+=counts[c];}else groups.set(key,{x:x/4,y:y/4,west:100+x/320,east:100+(x+64)/320,south:y/480,north:(y+64)/480,counts:counts.slice(),matching,total:counts.reduce((a,b)=>a+b,0),prefs:[p]});}
+        return {cells:[...groups.values()].map(c=>({...c,prefs:c.prefs.sort((a,b)=>a-b)})),step:16,detail:false};
+      }
       let source=[];
       if(delivery){
         const visiblePrefs=new Set(needed.flatMap(t=>t.prefs));
@@ -74,11 +109,11 @@ export async function loadSpatial(){
       }
       return {cells:converted(source,prefs,mask,64),step:16,detail:false};
     }
-    const all=[];let i=0;async function worker(){while(i<needed.length){if(signal.aborted)return;for(const r of await rows(needed[i++],signal))all.push(r);}}await Promise.all([worker(),worker()]);
-    return {cells:converted(all.filter(r=>includesRecordRow(scope,r)),prefs,mask,1),step:.25,detail:true};
+    await prepareRegions(signal);const detail=regionalTiles(needed,scope),all=[];let i=0;async function worker(){while(i<detail.length){if(signal.aborted)return;for(const r of await rows(detail[i++],signal))all.push(r);}}await Promise.all([worker(),worker()]);
+    return {cells:converted(all.filter(r=>includesRecordRow(scope,r)),prefs,mask||acceptedKeys(species,data.rules[species.id]||[],settings),1),step:.25,detail:true};
   }
   async function exportGeoJSON({prefs,bounds,species,settings,catalog,onProgress,signal}){
-    await prepare(signal);const scope=recordScope(data.geography,species,prefs,settings.scope),needed=manifest.tiles.filter(t=>t.prefs.some(p=>prefs.includes(p))&&intersects(t,bounds)),mask=acceptedKeys(species,data.rules[species.id]||[],settings),features=[];
+    await prepare(signal);await prepareRegions(signal);const scope=recordScope(data.geography,species,prefs,settings.scope),needed=regionalTiles(manifest.tiles.filter(t=>t.prefs.some(p=>prefs.includes(p))&&intersects(t,bounds)),scope),mask=acceptedKeys(species,data.rules[species.id]||[],settings),features=[];
     if(needed.reduce((n,t)=>n+t.cells,0)>150000)throw new Error('範囲が広いため、地図を拡大してから保存してください。');
     for(let i=0;i<needed.length;i++){if(signal.aborted)throw new DOMException('Cancelled','AbortError');for(const row of await rows(needed[i],signal)){if(!includesRecordRow(scope,row)||!intersects({bounds:[row[0],row[1],row[0]+1,row[1]+1]},bounds))continue;const f=geoFeature(row,mask,species,settings,catalog);if(f){f.properties.record_region=row[4]?data.geography.regions[row[4]].names.join(' / '):null;features.push(f);}}if(features.length>50000)throw new Error('件数が多いため出力できません。対象条件を絞ってください。');onProgress(i+1,needed.length);await new Promise(r=>setTimeout(r,0));}
     return {type:'FeatureCollection',name:'spider-habitat-candidates',metadata:{title:'日本産クモ類 生息候補地データベース',model:data.model,publication_policy:data.publicationPolicy,record_geography:geographicNote(data.geography,scope),unresolved_islands:scope.unresolved,excluded_landcover_classes:excludedClasses(settings.excludedClasses),selected_habitats:habitatMetadata(species,data.rules[species.id]||[],settings),habitat_combination:'OR between habitats; AND within each habitat',elevation:profile.elevation,...(profile.elevation?{elevation_thresholds:elevationThresholds(settings),elevation_method:data.elevationMethod,elevation_approval:data.elevationApproval}:{}),crs:'OGC:CRS84 (longitude, latitude)',source:data.source||PUBLIC_SOURCES,license:data.license||PUBLIC_LICENSES,excluded_data:heldLayers(profile),warning:'区画全体が生息地という意味ではありません。'},features};
@@ -90,5 +125,5 @@ export async function loadSpatial(){
     return bs.length?[Math.min(...bs.map(b=>b[0])),Math.min(...bs.map(b=>b[1])),Math.max(...bs.map(b=>b[2])),Math.max(...bs.map(b=>b[3]))]:null;
   }
   await prepare();
-  return {data,profile,mapCells,exportGeoJSON,scopeBounds};
+  return {data,profile,mapCells,exportGeoJSON,scopeBounds,ensureSpecies:queries?.ensureSpecies||(async()=>{}),needsSpecies:queries?.needsSpecies||(()=>false)};
 }

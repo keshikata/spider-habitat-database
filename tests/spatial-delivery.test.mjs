@@ -9,6 +9,7 @@ import {packSpatialDelivery} from '../scripts/pack-spatial-delivery.mjs';
 import {loadSpatial} from '../site/spatial.js';
 import {PUBLICATION_POLICY} from '../site/publication-policy.js';
 import {SPATIAL_MODEL} from '../site/spatial-model.js';
+import {summarizeSpatial} from '../site/spatial-model.js';
 
 test('lazy delivery preserves prefecture splits, island scope and GeoJSON without eager overviews',async t=>{
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'spider-delivery-')),originalFetch=globalThis.fetch;
@@ -29,7 +30,7 @@ test('lazy delivery preserves prefecture splits, island scope and GeoJSON withou
   const regions={1:{pref:1,areas:{320:3},meshes:1,bounds:[131,31,132,32],names:['島A']},2:{pref:2,areas:{320:5},meshes:1,bounds:[131,31,132,32],names:['本土']},3:{pref:3,areas:{320:7},meshes:1,bounds:[134,37,135,38],names:['遠い本土']}};
   const g={schema:1,sourceManifestSHA256,regions,tiles:{[id]:[[0,1],[1,2]],[farId]:[[0,3]]},mainland:{2:'2',3:'3'},islands:{島A:'1'},overview:[...cells,...farCells].map((r,i)=>[...r,i+1])};
   const packed=gzipSync(Buffer.from(JSON.stringify(g)));await write('geography.json.gz',packed);await write('geography-manifest.json',{schema:1,sha256:hash(packed)});
-  packSpatialDelivery(root);
+  packSpatialDelivery(root,{query:false});
   const requests=[];globalThis.fetch=async url=>{requests.push(String(url));try{return new Response(await fs.readFile(path.join(root,path.basename(String(url)))));}catch{return new Response('',{status:404});}};
   const spatial=await loadSpatial();assert.ok(!requests.some(x=>/map-(?:pref|region)-|overview-/.test(x)));
   const species={id:'1',classes:[5],records:{1:1},recordAreas:{1:{mainland:false,islands:['島A'],unspecified:false}}};
@@ -43,4 +44,17 @@ test('lazy delivery preserves prefecture splits, island scope and GeoJSON withou
   assert.equal((await spatial.mapCells({...off,zoom:12})).cells[0].matching,0);
   const filteredGeo=await spatial.exportGeoJSON({...off,catalog:{prefectures:['A','B']},onProgress:()=>{}});assert.equal(filteredGeo.features.length,0);assert.deepEqual(filteredGeo.metadata.excluded_landcover_classes,[5]);
   const cancelled=new AbortController();cancelled.abort();await assert.rejects(spatial.mapCells({...options,zoom:5,signal:cancelled.signal}),{name:'AbortError'});
+  const delivery=packSpatialDelivery(root);requests.length=0;
+  const lazy=await loadSpatial();
+  for(const info of [delivery.summary,delivery.geography,delivery.query.runs])assert.ok(!requests.some(url=>url.endsWith(info.file)),'large summaries and fine geography must stay deferred');
+  assert.ok(!requests.some(url=>/query-(?:summary|map|pref)-/.test(url)),'boot loads only metadata');
+  assert.equal(lazy.needsSpecies(['1']),true);await lazy.ensureSpecies(['1']);assert.equal(lazy.needsSpecies(['1']),false);
+  assert.equal(summarizeSpatial({prefectures:['A'],regions:{hokkaido:[1]}},lazy.data,species,{...options.settings,region:'all',pref:'',scope:'recorded'}).area,3);
+  const scoped=await lazy.mapCells({...options,prefs:[1],zoom:5,settings:{...options.settings,scope:'recorded'}});
+  assert.equal(scoped.cells[0].matching,3);assert.equal(scoped.cells[0].total,3);
+  assert.ok(requests.some(url=>/query-pref-[a-f0-9]{12}-1-/.test(url)));assert.ok(!requests.some(url=>/query-pref-[a-f0-9]{12}-3-/.test(url)),'offscreen query partitions stay deferred');
+  assert.ok(!requests.some(url=>url.endsWith(delivery.query.runs.file)),'coarse map needs no detail geography');
+  const detailed=await lazy.mapCells({...options,zoom:12});assert.equal(detailed.cells[0].matching,8);assert.ok(requests.some(url=>url.endsWith(delivery.query.runs.file)));
+  assert.deepEqual((await lazy.exportGeoJSON({...options,catalog:{prefectures:['A','B']},onProgress:()=>{}})).features,geo.features);
+  const noCover=await lazy.mapCells({...off,zoom:5});assert.equal(noCover.cells[0].matching,0);assert.equal(noCover.cells[0].total,8);
 });

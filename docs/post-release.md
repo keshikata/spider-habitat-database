@@ -141,3 +141,7 @@ node scripts/check-deployment.mjs https://spider-habitat-atlas.pages.dev/ output
 Search Consoleの所有権をHTMLタグで確認し、サイトマップを送信。無料のCloudflare Web Analyticsを追加した。公開版は `output/release-2026-10-19-measurement/`、版URLは https://ee412865.spider-habitat-atlas.pages.dev/ 。2,410ファイル・334,321,045 bytes、識別値 `2ab53e7dc329e8071ea7c4780e47c744b33cf65b4860cd2865d9a13a5a0cce5d`。計算・データ・資料2,405ファイルは前版と同一。
 
 JavaScript58件、33配信ファイルのハッシュ・HTTPS・ヘッダー、実計測先のHTTP204を確認。Cookie0、検索語とURLクエリのテスト文字列の送信なし。公開版の標高は保留を維持。承認待ち版にも同じ設定を引き継いだ。Googleのサイトマップ処理状態と運用上の注意は[検索と計測の設定](site-measurement.md)と作業記録を参照。
+
+## 2026-10-21：公開ソースの同期
+
+[GitHubのアプリ更新 bdc6d1f](https://github.com/keshikata/spider-habitat-database/commit/bdc6d1fefd50278834820906ab62576ec5c80428)で、検証済みのコード・説明45ファイルを同期した。ソース側のNode58件、WebKitの操作・保存・アクセシビリティ確認が合格。研究データ、図版、私的な申請・承認書、検証に用いた観測記録は含めない。公開サイトの差し替えとは別の作業で、標高データは引き続き承認待ち。初期照合の方法・限界は[検証記録](validation.md#2026-10-21-webkitと公開観測記録による追加確認)を参照。
